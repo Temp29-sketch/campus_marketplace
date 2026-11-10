@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Become a vendor · Campus Market{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Become a vendor</h1>
+  <p class="muted">Step 1 of 2: confirm you're a student. Vendors must use their school email (ending in <strong>@{{ domain }}</strong>). Your buyer account and history stay exactly as they are.</p>
+  <form method="post" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <label for="school_email">School email</label>
+    <input id="school_email" type="email" name="school_email" value="{{ form.get('school_email', '') }}" placeholder="you@{{ domain }}" required>
+
+    <label for="matric_number">Matriculation number</label>
+    <input id="matric_number" name="matric_number" value="{{ form.get('matric_number', '') }}" required>
+
+    <button class="btn full" type="submit">Send confirmation link</button>
+  </form>
+  <p class="muted">Didn't get it? Submit the form again to send a fresh link.</p>
+</div>
+{% endblock %}

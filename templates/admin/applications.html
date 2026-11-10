@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Vendor applications · Campus Market{% endblock %}
+{% block content %}
+<h1>Vendor applications</h1>
+
+<div class="tabs">
+  {% for t in tabs %}
+    <a class="tab {% if t == status %}active{% endif %}" href="{{ url_for('admin.applications', status=t) }}">
+      {{ t|capitalize }}{% if t != 'all' %} ({{ counts.get(t, 0) }}){% endif %}
+    </a>
+  {% endfor %}
+</div>
+
+{% if not applications %}
+  <p class="muted">Nothing here.</p>
+{% endif %}
+
+{% for a in applications %}
+  <article class="app-card">
+    <header>
+      <h2>{{ a.business_name }}</h2>
+      <span class="badge {{ a.status }}">{{ a.status }}</span>
+    </header>
+    <p class="meta">
+      {{ a.category.name }} · {{ a.user.name }} · matric {{ a.user.matric_number }}<br>
+      {{ a.user.school_email }} · {{ a.phone_number }} · submitted {{ a.created_at.strftime('%d %b %Y') }}
+    </p>
+    <p>{{ a.bio }}</p>
+
+    {% if a.status == 'rejected' and a.rejection_reason %}
+      <p class="muted">Reason given: {{ a.rejection_reason }}</p>
+    {% endif %}
+
+    {% if a.status == 'pending' %}
+      <div class="actions">
+        <form method="post" action="{{ url_for('admin.approve', application_id=a.id) }}" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn" type="submit">Approve</button>
+        </form>
+        <form method="post" action="{{ url_for('admin.reject', application_id=a.id) }}" class="inline reject">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input name="reason" maxlength="255" placeholder="Reason (shown to the applicant)">
+          <button class="btn danger" type="submit">Reject</button>
+        </form>
+      </div>
+    {% endif %}
+  </article>
+{% endfor %}
+{% endblock %}

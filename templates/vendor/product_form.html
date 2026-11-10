@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit listing' if product else 'Add listing' }} · Campus Market{% endblock %}
+{% block content %}
+<div class="card wide">
+  <h1>{{ 'Edit listing' if product else 'Add a listing' }}</h1>
+
+  {% if product and product.images %}
+    <h2 class="h3">Photos</h2>
+    <div class="photo-grid">
+      {% for img in product.images %}
+        <figure>
+          <img src="{{ thumb_url(img.storage_key) }}" alt="">
+          {% if loop.first %}<figcaption>Cover</figcaption>{% endif %}
+          <form method="post" action="{{ url_for('listings.remove_image', product_id=product.id, image_id=img.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="link danger-link" type="submit">Remove</button>
+          </form>
+        </figure>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <label for="title">Title</label>
+    <input id="title" name="title" value="{{ form.get('title', '') }}" maxlength="150" required>
+
+    <label for="category_id">Category</label>
+    <select id="category_id" name="category_id" required>
+      <option value="">Choose a category</option>
+      {% for c in categories %}
+        <option value="{{ c.id }}" {% if form.get('category_id') == c.id|string %}selected{% endif %}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+
+    <label for="price">Price (₦)</label>
+    <input id="price" name="price" inputmode="decimal" value="{{ form.get('price', '') }}" placeholder="2500" required>
+
+    <label for="description">Description</label>
+    <textarea id="description" name="description" rows="5" maxlength="2000">{{ form.get('description', '') }}</textarea>
+
+    <label class="check"><input type="checkbox" name="is_service" {% if form.get('is_service') %}checked{% endif %}>
+      This is a service (photos optional)</label>
+
+    {% if product %}
+      <label class="check"><input type="checkbox" name="is_available" {% if form.get('is_available') %}checked{% endif %}>
+        Available right now</label>
+    {% endif %}
+
+    <label for="images">{{ 'Add photos' if product else 'Photos' }}</label>
+    <input id="images" type="file" name="images" accept="image/jpeg,image/png,image/webp" multiple>
+    <p class="muted small">JPG, PNG or WebP, up to 10 MB each. Max {{ config.MAX_IMAGES_PER_PRODUCT }} per listing; the first is the cover.
+      {% if request.method == 'POST' %}Please choose your photos again.{% endif %}</p>
+
+    <button class="btn full" type="submit">{{ 'Save changes' if product else 'Publish listing' }}</button>
+  </form>
+</div>
+{% endblock %}

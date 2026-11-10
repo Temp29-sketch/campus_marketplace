@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Campus Market{% endblock %}
+{% block content %}
+{% if not current_user.is_authenticated %}
+<section class="hero compact">
+  <h1>Your campus marketplace, minus the group-chat spam.</h1>
+  <p>Food, fashion, tech and services from verified student vendors, in one clean feed.</p>
+  <a class="btn" href="{{ url_for('auth.register') }}">Sign up to buy</a>
+  <a class="btn alt" href="{{ url_for('auth.register_vendor') }}">Sell on campus</a>
+</section>
+{% endif %}
+
+<div id="catalog">
+  <form class="search" method="get" action="{{ url_for('index') }}" role="search">
+    <input type="search" name="q" value="{{ q }}" placeholder="Search jollof, sneakers, laptop repair…"
+           autocomplete="off" aria-label="Search listings">
+    <input type="hidden" name="category" value="{{ active_category }}">
+    <input type="hidden" name="type" value="{{ ptype }}">
+    <select name="sort" aria-label="Sort by">
+      <option value="new" {% if sort == 'new' %}selected{% endif %}>Newest</option>
+      <option value="price_asc" {% if sort == 'price_asc' %}selected{% endif %}>Price: low to high</option>
+      <option value="price_desc" {% if sort == 'price_desc' %}selected{% endif %}>Price: high to low</option>
+    </select>
+    <button class="btn" type="submit">Search</button>
+  </form>
+
+  <div class="chips" role="group" aria-label="Categories">
+    <a class="chip {% if not active_category %}active{% endif %}" data-filter="category" data-value=""
+       href="{{ link(category='', page='') }}">All</a>
+    {% for c in categories %}
+      <a class="chip {% if active_category == c.slug %}active{% endif %}" data-filter="category" data-value="{{ c.slug }}"
+         href="{{ link(category=c.slug, page='') }}">{{ c.name }}</a>
+    {% endfor %}
+  </div>
+  <div class="chips small" role="group" aria-label="Type">
+    <a class="chip {% if not ptype %}active{% endif %}" data-filter="type" data-value="" href="{{ link(type='', page='') }}">Everything</a>
+    <a class="chip {% if ptype == 'product' %}active{% endif %}" data-filter="type" data-value="product" href="{{ link(type='product', page='') }}">Products</a>
+    <a class="chip {% if ptype == 'service' %}active{% endif %}" data-filter="type" data-value="service" href="{{ link(type='service', page='') }}">Services</a>
+  </div>
+
+  <div id="results">{% include "catalog/_results.html" %}</div>
+</div>
+<script src="{{ url_for('static', filename='catalog.js') }}" defer></script>
+{% endblock %}

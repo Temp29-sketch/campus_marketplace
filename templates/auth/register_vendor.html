@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Sell on Campus Market{% endblock %}
+{% block content %}
+<div class="card">
+  {% if sent_to %}
+    <h1>Check your school email</h1>
+    <p>We sent a confirmation link to <strong>{{ sent_to }}</strong>.</p>
+    <p class="muted">Open it to choose your password and continue. The link works for 24 hours. Your account isn't created until you click it.</p>
+  {% else %}
+    <h1>Sign up to sell</h1>
+    <p class="muted">Vendors use their school email so buyers know they're dealing with real students. We'll email you a link to confirm it, then you'll set a password and tell us about your business.</p>
+    <form method="post" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <label for="name">Full name</label>
+      <input id="name" name="name" value="{{ form.get('name', '') }}" autocomplete="name" required>
+
+      <label for="university_id">University</label>
+      <select id="university_id" name="university_id" required>
+        <option value="">Choose your university</option>
+        {% for u in universities %}
+          <option value="{{ u.id }}" {% if form.get('university_id') == u.id|string %}selected{% endif %}>{{ u.name }} (@{{ u.email_domain }})</option>
+        {% endfor %}
+      </select>
+
+      <label for="school_email">School email</label>
+      <input id="school_email" type="email" name="school_email" value="{{ form.get('school_email', '') }}" autocomplete="email" required>
+
+      <label for="matric_number">Matriculation number</label>
+      <input id="matric_number" name="matric_number" value="{{ form.get('matric_number', '') }}" required>
+
+      <button class="btn full" type="submit">Send confirmation link</button>
+    </form>
+    <p class="muted">Just want to buy? <a href="{{ url_for('auth.register') }}">Sign up as a buyer</a> with any email.</p>
+  {% endif %}
+</div>
+{% endblock %}

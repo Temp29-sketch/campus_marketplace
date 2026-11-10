@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}My listings · Campus Market{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>My listings</h1>
+  <a class="btn" href="{{ url_for('listings.new_product') }}">Add listing</a>
+</div>
+
+{% if not products %}
+  <p class="muted">You haven't listed anything yet. Add your first product or service.</p>
+{% endif %}
+
+<div class="grid">
+  {% for p in products %}
+    <article class="product-card {% if not p.is_available %}soldout{% endif %}">
+      {% if p.cover_image %}
+        <img class="thumb" src="{{ thumb_url(p.cover_image.storage_key) }}" alt="{{ p.title }}">
+      {% else %}
+        <div class="thumb placeholder">{{ 'Service' if p.is_service else 'No photo' }}</div>
+      {% endif %}
+      <div class="body">
+        <h2>{{ p.title }}</h2>
+        <p class="price">{{ p.price|naira }}</p>
+        <p class="meta">{{ p.category.name }}{% if p.is_service %} · Service{% endif %}
+          {% if p.is_removed %}
+            <span class="badge rejected">Removed by admin</span>
+          {% else %}
+            <span class="badge {{ 'approved' if p.is_available else 'rejected' }}">{{ 'Available' if p.is_available else 'Sold out' }}</span>
+          {% endif %}
+        </p>
+        {% if p.is_removed %}
+          <p class="muted small">Hidden from buyers{% if p.removed_reason %}: {{ p.removed_reason }}{% endif %}. Contact your campus admin if you think this is a mistake.</p>
+        {% endif %}
+        <div class="actions">
+          <a class="btn small-btn" href="{{ url_for('listings.edit_product', product_id=p.id) }}">Edit</a>
+          <form method="post" action="{{ url_for('listings.toggle_availability', product_id=p.id) }}" class="inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="link" type="submit">{{ 'Mark sold out' if p.is_available else 'Mark available' }}</button>
+          </form>
+          <form method="post" action="{{ url_for('listings.delete_product', product_id=p.id) }}" class="inline"
+                data-confirm="Delete this listing and its photos?">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="link danger-link" type="submit">Delete</button>
+          </form>
+        </div>
+      </div>
+    </article>
+  {% endfor %}
+</div>
+{% endblock %}

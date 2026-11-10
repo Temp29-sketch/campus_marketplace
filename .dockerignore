@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.env
+.git
+uploads/
+*.db
+venv/
+.venv/
+test_*.py
+smoke_test.py

@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Application under review · Campus Market{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Application under review</h1>
+  <p><strong>{{ application.business_name }}</strong> is waiting for an admin to review it.</p>
+  <p class="muted">Submitted {{ application.created_at.strftime('%d %b %Y') }}. We'll email you at {{ current_user.email }} as soon as there's a decision.</p>
+</div>
+{% endblock %}

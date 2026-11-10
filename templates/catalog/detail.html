@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}{{ product.title }} · Campus Market{% endblock %}
+{% block content %}
+<p><a href="{{ url_for('index') }}">← Back to listings</a></p>
+
+<div class="detail">
+  <div class="gallery">
+    {% if product.images %}
+      <img class="main-photo" src="{{ image_url(product.images[0].storage_key) }}" alt="{{ product.title }}">
+      {% if product.images|length > 1 %}
+        <div class="photo-row">
+          {% for img in product.images[1:] %}
+            <a href="{{ image_url(img.storage_key) }}" target="_blank" rel="noopener">
+              <img src="{{ thumb_url(img.storage_key) }}" alt="{{ product.title }} photo {{ loop.index + 1 }}" loading="lazy">
+            </a>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% else %}
+      <div class="main-photo placeholder">{{ 'Service' if product.is_service else 'No photo' }}</div>
+    {% endif %}
+  </div>
+
+  <div class="info">
+    <h1>{{ product.title }}</h1>
+    <p class="price big">{{ product.price|naira }}</p>
+    <p class="meta">
+      <span class="badge cat">{{ product.category.name }}</span>
+      {% if product.is_service %}<span class="badge cat">Service</span>{% endif %}
+      {% if not product.is_available %}<span class="badge rejected">Sold out</span>{% endif %}
+    </p>
+    {% if product.description %}<p class="description">{{ product.description }}</p>{% endif %}
+    {% if not current_user.is_authenticated %}
+      <p class="small"><a href="{{ url_for('auth.login', next=url_for('reports.new', product_id=product.id)) }}">Log in to report this listing</a></p>
+    {% elif current_user.id != product.vendor_id %}
+      <p class="small"><a href="{{ url_for('reports.new', product_id=product.id) }}">Report this listing</a></p>
+    {% endif %}
+
+    <div class="seller card-lite">
+      <p class="muted small">Sold by</p>
+      <h2><a href="{{ url_for('catalog.store', vendor_id=product.vendor_id) }}">{{ product.business_name }}</a>
+        <span class="verified" title="Verified student vendor">✓ Verified</span></h2>
+
+      {% set state = contact_state(product) %}
+      {% if state == 'ok' %}
+        {% set wa = whatsapp_url(product.contact_phone, product.business_name, product.title, product.price|naira) %}
+        {% set tel = tel_url(product.contact_phone) %}
+        <p>{{ display_phone(product.contact_phone) }}</p>
+        <div class="actions">
+          {% if wa %}<a class="btn" href="{{ wa }}" target="_blank" rel="noopener">Chat on WhatsApp</a>{% endif %}
+          {% if tel %}<a class="btn alt" href="{{ tel }}">Call</a>{% endif %}
+        </div>
+      {% elif state == 'login' %}
+        <a class="btn" href="{{ url_for('auth.login', next=url_for('catalog.item', product_id=product.id)) }}">Log in to contact seller</a>
+        <p class="muted small">Contact details are shown to signed-in students only.</p>
+      {% elif state == 'soldout' %}
+        <p class="muted">This item is currently sold out.</p>
+      {% elif state == 'own' %}
+        <p class="muted">This is your listing.</p>
+        <a class="btn small-btn" href="{{ url_for('listings.edit_product', product_id=product.id) }}">Edit listing</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

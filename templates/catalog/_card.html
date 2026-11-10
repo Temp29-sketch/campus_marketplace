@@ -1,0 +1,33 @@
+<article class="product-card" data-product-id="{{ p.id }}">
+  <a href="{{ url_for('catalog.item', product_id=p.id) }}">
+    {% if p.cover_image %}
+      <img class="thumb" loading="lazy" src="{{ thumb_url(p.cover_image.storage_key) }}" alt="{{ p.title }}">
+    {% else %}
+      <div class="thumb placeholder">{{ 'Service' if p.is_service else 'No photo' }}</div>
+    {% endif %}
+  </a>
+  <div class="body">
+    <h2><a href="{{ url_for('catalog.item', product_id=p.id) }}">{{ p.title }}</a></h2>
+    <p class="price">{{ p.price|naira }}</p>
+    <p class="meta">
+      <span class="badge cat">{{ p.category.name }}</span>
+      {% if p.is_service %}<span class="badge cat">Service</span>{% endif %}
+    </p>
+    <p class="vendor">by <a href="{{ url_for('catalog.store', vendor_id=p.vendor_id) }}">{{ p.business_name }}</a>
+      <span class="verified" title="Verified student vendor">✓</span></p>
+
+    {% set state = contact_state(p) %}
+    {% if state == 'ok' %}
+      {% set wa = whatsapp_url(p.contact_phone, p.business_name, p.title, p.price|naira) %}
+      {% set tel = tel_url(p.contact_phone) %}
+      <div class="actions">
+        {% if wa %}<a class="btn small-btn" href="{{ wa }}" target="_blank" rel="noopener">WhatsApp</a>{% endif %}
+        {% if tel %}<a class="btn small-btn alt" href="{{ tel }}">Call</a>{% endif %}
+      </div>
+    {% elif state == 'login' %}
+      <a class="link" href="{{ url_for('auth.login', next=url_for('catalog.item', product_id=p.id)) }}">Log in to contact seller</a>
+    {% elif state == 'own' %}
+      <span class="muted small">Your listing</span>
+    {% endif %}
+  </div>
+</article>

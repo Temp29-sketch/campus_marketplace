@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Vendor application · Campus Market{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Apply to sell</h1>
+  <p class="muted">Step 2 of 2: tell buyers about your business. An admin reviews every application.</p>
+
+  {% if application and application.status == 'rejected' %}
+    <div class="flash error">
+      Your last application wasn't approved{% if application.rejection_reason %}: {{ application.rejection_reason }}{% endif %}.
+      You can update it below and apply again.
+    </div>
+  {% endif %}
+
+  <form method="post" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <label for="business_name">Business name</label>
+    <input id="business_name" name="business_name" value="{{ form.get('business_name', '') }}" maxlength="120" required>
+
+    <label for="category_id">Category</label>
+    <select id="category_id" name="category_id" required>
+      <option value="">Choose a category</option>
+      {% for c in categories %}
+        <option value="{{ c.id }}" {% if form.get('category_id') == c.id|string %}selected{% endif %}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+
+    <label for="bio">About your business</label>
+    <textarea id="bio" name="bio" rows="5" maxlength="1000" required>{{ form.get('bio', '') }}</textarea>
+
+    <label for="phone_number">Phone / WhatsApp number</label>
+    <input id="phone_number" type="tel" name="phone_number" value="{{ form.get('phone_number', '') }}" placeholder="0801 234 5678" required>
+    <p class="muted small">Buyers will use this number to reach you.</p>
+
+    <button class="btn full" type="submit">Submit application</button>
+  </form>
+</div>
+{% endblock %}

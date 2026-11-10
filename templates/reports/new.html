@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Report listing · Campus Market{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Report this listing</h1>
+  <p><strong>{{ product.title }}</strong><br><span class="muted">by {{ product.business_name }}</span></p>
+  <p class="muted small">Reports are private: the vendor never sees who sent them. An admin from your campus reviews every report.</p>
+
+  <form method="post" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <fieldset>
+      <legend>What's wrong?</legend>
+      {% for key, label in reasons.items() %}
+        <label class="check">
+          <input type="radio" name="reason" value="{{ key }}" {% if form.get('reason') == key %}checked{% endif %} required>
+          {{ label }}
+        </label>
+      {% endfor %}
+    </fieldset>
+
+    <label for="details">Details <span class="muted">(optional, required for "Something else")</span></label>
+    <textarea id="details" name="details" rows="4" maxlength="500">{{ form.get('details', '') }}</textarea>
+
+    <button class="btn full" type="submit">Send report</button>
+  </form>
+  <p><a href="{{ url_for('catalog.item', product_id=product.id) }}">Cancel</a></p>
+</div>
+{% endblock %}

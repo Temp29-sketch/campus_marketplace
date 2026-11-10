@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}{{ vendor.business_name }} · Campus Market{% endblock %}
+{% block content %}
+<p><a href="{{ url_for('index') }}">← Back to listings</a></p>
+
+<section class="storefront">
+  <h1>{{ vendor.business_name }} <span class="verified" title="Verified student vendor">✓ Verified</span></h1>
+  <p class="muted">{{ vendor.vendor_application.category.name }} · {{ vendor.university.name }}</p>
+  <p class="description">{{ vendor.vendor_application.bio }}</p>
+
+  {% if current_user.is_authenticated or not config['REQUIRE_LOGIN_FOR_CONTACT'] %}
+    {% if current_user.is_authenticated and current_user.id == vendor.id %}
+      <p class="muted">This is your storefront.</p>
+    {% else %}
+      {% set wa = whatsapp_url(vendor.vendor_application.phone_number, vendor.business_name, 'your listings', 'see storefront') %}
+      <div class="actions">
+        <span>{{ display_phone(vendor.vendor_application.phone_number) }}</span>
+        {% set tel = tel_url(vendor.vendor_application.phone_number) %}
+        {% if tel %}<a class="btn small-btn alt" href="{{ tel }}">Call</a>{% endif %}
+      </div>
+    {% endif %}
+  {% else %}
+    <a class="link" href="{{ url_for('auth.login', next=url_for('catalog.store', vendor_id=vendor.id)) }}">Log in to contact this seller</a>
+  {% endif %}
+</section>
+
+{% if not products %}
+  <p class="muted">Nothing available right now. Check back soon.</p>
+{% endif %}
+<div class="grid">
+  {% for p in products %}{% include "catalog/_card.html" %}{% endfor %}
+</div>
+{% endblock %}

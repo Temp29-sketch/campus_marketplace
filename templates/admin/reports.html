@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Reported listings · Campus Market{% endblock %}
+{% block content %}
+<h1>Reported listings</h1>
+
+<div class="tabs">
+  {% for t in tabs %}
+    <a class="tab {% if t == status %}active{% endif %}" href="{{ url_for('admin.reports', status=t) }}">
+      {{ t|capitalize }}{% if t != 'all' %} ({{ counts.get(t, 0) }}){% endif %}
+    </a>
+  {% endfor %}
+</div>
+
+{% if not reports %}
+  <p class="muted">Nothing here.</p>
+{% endif %}
+
+{% for r in reports %}
+  {% set p = r.product %}
+  <article class="app-card">
+    <header>
+      <h2>
+        {% if p.is_removed %}{{ p.title }}{% else %}<a href="{{ url_for('catalog.item', product_id=p.id) }}">{{ p.title }}</a>{% endif %}
+      </h2>
+      <span class="badge {{ 'pending' if r.status == 'open' else ('approved' if r.status == 'dismissed' else 'rejected') }}">{{ r.status }}</span>
+    </header>
+
+    <p class="meta">
+      Reported for <strong>{{ r.reason_label }}</strong> by {{ r.reporter.name }} · {{ r.created_at.strftime('%d %b %Y') }}<br>
+      Vendor: {{ vendor_label(p.vendor) }} ({{ p.vendor.email }}) · {{ p.price|naira }}
+    </p>
+    {% if r.details %}<p>“{{ r.details }}”</p>{% endif %}
+    {% if r.status == 'open' and open_per_product.get(p.id, 0) > 1 %}
+      <p class="muted">⚠ {{ open_per_product[p.id] }} open reports on this listing.</p>
+    {% endif %}
+    {% if p.is_removed %}
+      <p class="muted">This listing is currently removed{% if p.removed_reason %}: {{ p.removed_reason }}{% endif %}.</p>
+    {% endif %}
+
+    {% if r.status == 'open' %}
+      <div class="mod-actions">
+        <form method="post" action="{{ url_for('admin.dismiss_report', report_id=r.id) }}" class="mod-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input name="note" maxlength="255" placeholder="Note (optional)">
+          <button class="btn alt" type="submit">Dismiss</button>
+        </form>
+        <form method="post" action="{{ url_for('admin.remove_listing', report_id=r.id) }}" class="mod-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input name="note" maxlength="255" placeholder="Reason shown to vendor (optional)">
+          <button class="btn danger" type="submit">Remove listing</button>
+        </form>
+        {% if p.vendor.role == 'vendor' %}
+          <form method="post" action="{{ url_for('admin.revoke_vendor', report_id=r.id) }}" class="mod-form"
+                data-confirm="Revoke vendor access? All of this vendor's listings will disappear.">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input name="note" maxlength="255" placeholder="Reason (required, shown to vendor)" required>
+            <button class="btn danger" type="submit">Revoke vendor</button>
+          </form>
+        {% endif %}
+      </div>
+    {% else %}
+      <p class="muted">
+        Handled by {{ r.resolved_by.name if r.resolved_by else 'an admin' }}{% if r.resolved_at %} on {{ r.resolved_at.strftime('%d %b %Y') }}{% endif %}{% if r.resolution_note %}: {{ r.resolution_note }}{% endif %}
+      </p>
+      {% if p.is_removed %}
+        <form method="post" action="{{ url_for('admin.restore_listing', product_id=p.id) }}" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn small-btn alt" type="submit">Restore listing</button>
+        </form>
+      {% endif %}
+    {% endif %}
+  </article>
+{% endfor %}
+{% endblock %}

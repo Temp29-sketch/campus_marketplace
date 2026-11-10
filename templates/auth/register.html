@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Sign up · Campus Market{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Create your account</h1>
+  <p class="muted">Use any email you like to browse and buy. Want to sell? You'll verify your school email later.</p>
+  <form method="post" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <label for="name">Full name</label>
+    <input id="name" name="name" value="{{ form.get('name', '') }}" autocomplete="name" required>
+
+    <label for="email">Email</label>
+    <input id="email" type="email" name="email" value="{{ form.get('email', '') }}" autocomplete="email" required>
+
+    <label for="university_id">University</label>
+    <select id="university_id" name="university_id" required>
+      <option value="">Choose your university</option>
+      {% for u in universities %}
+        <option value="{{ u.id }}" {% if form.get('university_id') == u.id|string %}selected{% endif %}>{{ u.name }}</option>
+      {% endfor %}
+    </select>
+
+    <label for="password">Password</label>
+    <input id="password" type="password" name="password" minlength="8" autocomplete="new-password" required>
+
+    <button class="btn full" type="submit">Sign up</button>
+  </form>
+  <p class="muted">Already have an account? <a href="{{ url_for('auth.login') }}">Log in</a></p>
+  <p class="muted">Want to sell? <a href="{{ url_for('auth.register_vendor') }}">Sign up as a vendor</a></p>
+</div>
+{% endblock %}
