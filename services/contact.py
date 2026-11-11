@@ -32,5 +32,5 @@ def whatsapp_url(phone, business_name, title, price_text) -> str | None:
     digits = _digits(phone)
     if not digits:
         return None
-    text = f'Hi {business_name}, I saw "{title}" ({price_text}) on Campus Market. Is it still available?'
+    text = f'Hi {business_name}, I saw "{title}" ({price_text}) on UniHub. Is it still available?'
     return f"https://wa.me/{digits}?text={quote(text)}"

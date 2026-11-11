@@ -8,3 +8,5 @@ venv/
 .venv/
 test_*.py
 smoke_test.py
+
+unihub.db

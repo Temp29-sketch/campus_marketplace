@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 
 from flask_login import UserMixin
 from werkzeug.security import check_password_hash, generate_password_hash
+from sqlalchemy import update
 
 from extensions import db, login_manager
 
@@ -108,9 +109,16 @@ class User(UserMixin, db.Model):
 
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(10), nullable=False, default=ROLE_BUYER)
+    hostel_id = db.Column(db.Integer, db.ForeignKey("hostels.id"))
+    hostel_block_id = db.Column(db.Integer, db.ForeignKey("hostel_blocks.id"))
+    floor = db.Column(db.Integer)
+    room_number = db.Column(db.String(10))
+    photo_key = db.Column(db.String(255))
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
 
     university = db.relationship("University", back_populates="users")
+    hostel = db.relationship("Hostel", foreign_keys=[hostel_id])
+    hostel_block = db.relationship("HostelBlock", foreign_keys=[hostel_block_id])
     vendor_application = db.relationship(
         "VendorApplication",
         back_populates="user",
@@ -172,6 +180,54 @@ def load_user(user_id):
     return db.session.get(User, int(user_id))
 
 
+
+class Hostel(db.Model):
+    __tablename__ = "hostels"
+    __table_args__ = (
+        db.UniqueConstraint("university_id", "name", name="uq_hostel_university_name"),
+        db.CheckConstraint("gender IN ('boys','girls')", name="ck_hostel_gender"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    university_id = db.Column(db.Integer, db.ForeignKey("universities.id"), nullable=False, index=True)
+    name = db.Column(db.String(80), nullable=False)
+    gender = db.Column(db.String(10), nullable=False)
+    has_blocks = db.Column(db.Boolean, nullable=False, default=False)
+    floor_count = db.Column(db.Integer)
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    blocks = db.relationship("HostelBlock", back_populates="hostel", cascade="all, delete-orphan", order_by="HostelBlock.sort_order")
+
+
+class HostelBlock(db.Model):
+    __tablename__ = "hostel_blocks"
+    __table_args__ = (db.UniqueConstraint("hostel_id", "name", name="uq_hostelblock_hostel_name"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    hostel_id = db.Column(db.Integer, db.ForeignKey("hostels.id"), nullable=False, index=True)
+    name = db.Column(db.String(40), nullable=False)
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+    hostel = db.relationship("Hostel", back_populates="blocks")
+
+
+class PendingSignup(db.Model):
+    __tablename__ = "pending_signups"
+
+    id = db.Column(db.Integer, primary_key=True)
+    token_hash = db.Column(db.String(64), nullable=False, unique=True, index=True)
+    name = db.Column(db.String(120), nullable=False)
+    school_email = db.Column(db.String(255), nullable=False, index=True)
+    matric_number = db.Column(db.String(40), nullable=False)
+    university_id = db.Column(db.Integer, db.ForeignKey("universities.id"), nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    hostel_id = db.Column(db.Integer, db.ForeignKey("hostels.id"), nullable=False)
+    hostel_block_id = db.Column(db.Integer, db.ForeignKey("hostel_blocks.id"))
+    floor = db.Column(db.Integer)
+    room_number = db.Column(db.String(10), nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    expires_at = db.Column(db.DateTime(timezone=True), nullable=False)
+
+
 class VendorApplication(db.Model):
     """One application per user. A rejected user may resubmit (we reuse the row)."""
 
@@ -186,6 +242,11 @@ class VendorApplication(db.Model):
     category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=False)
     bio = db.Column(db.Text, nullable=False)
     phone_number = db.Column(db.String(25), nullable=False)
+    bank_code = db.Column(db.String(10))
+    bank_name = db.Column(db.String(80))
+    account_number = db.Column(db.String(10))
+    account_name = db.Column(db.String(120))
+    paystack_subaccount_code = db.Column(db.String(40))
     status = db.Column(db.String(10), nullable=False, default=APP_PENDING, index=True)
     rejection_reason = db.Column(db.String(255))
     reviewed_by_id = db.Column(db.Integer, db.ForeignKey("users.id"))
@@ -199,6 +260,10 @@ class VendorApplication(db.Model):
     def approve(self, admin: "User") -> None:
         if not self.user.has_verified_school_email:
             raise ValueError("Vendor must verify a school email before approval.")
+        if not self.user.photo_key:
+            raise ValueError("Vendor must upload a profile photo before approval.")
+        if not self.bank_code or not self.account_number:
+            raise ValueError("Vendor must provide bank details before approval.")
         self.status = APP_APPROVED
         self.rejection_reason = None
         self.reviewed_by = admin
@@ -225,6 +290,7 @@ class Product(db.Model):
     description = db.Column(db.Text, nullable=False, default="")
     price = db.Column(db.Numeric(10, 2), nullable=False)  # Naira
     is_service = db.Column(db.Boolean, nullable=False, default=False)  # product vs service
+    stock = db.Column(db.Integer, nullable=True)
     is_available = db.Column(db.Boolean, nullable=False, default=True, index=True)  # vendor: in stock?
     # Admin moderation: a removed listing is hidden from everyone but its vendor.
     # Separate from is_available so a vendor can't bring a removed listing back.
@@ -242,6 +308,22 @@ class Product(db.Model):
         cascade="all, delete-orphan",
     )
     reports = db.relationship("Report", back_populates="product", cascade="all, delete-orphan")
+
+    def decrement_stock(self, quantity=1):
+        if not isinstance(quantity, int) or isinstance(quantity, bool) or quantity <= 0 or self.stock is None:
+            return False
+        result = db.session.execute(
+            update(Product).where(Product.id == self.id, Product.stock >= quantity)
+            .values(stock=Product.stock - quantity).execution_options(synchronize_session=False)
+        )
+        if result.rowcount != 1:
+            return False
+        db.session.execute(
+            update(Product).where(Product.id == self.id, Product.stock == 0).values(is_available=False)
+        )
+        db.session.refresh(self)
+        db.session.commit()
+        return True
 
     def remove(self, reason: str | None = None) -> None:
         self.is_removed = True

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Vendor application · Campus Market{% endblock %}
+{% block title %}Vendor application · {{ app_name }}{% endblock %}
 {% block content %}
 <div class="card">
   <h1>Apply to sell</h1>
@@ -12,8 +12,13 @@
     </div>
   {% endif %}
 
-  <form method="post" novalidate>
+  <form method="post" enctype="multipart/form-data" novalidate>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    {% if current_user.photo_key %}<div class="avatar-preview">{% with user=current_user, size='large' %}{% include "_avatar.html" %}{% endwith %}</div>{% endif %}
+    <label for="profile_photo">Profile photo{% if not current_user.photo_key %} (required){% endif %}</label>
+    <input id="profile_photo" type="file" name="profile_photo" accept="image/jpeg,image/png,image/webp" {% if not current_user.photo_key %}required{% endif %}>
+    <p class="muted small">This is how buyers will recognise you. Use a clear photo of your face.</p>
 
     <label for="business_name">Business name</label>
     <input id="business_name" name="business_name" value="{{ form.get('business_name', '') }}" maxlength="120" required>
@@ -33,6 +38,11 @@
     <input id="phone_number" type="tel" name="phone_number" value="{{ form.get('phone_number', '') }}" placeholder="0801 234 5678" required>
     <p class="muted small">Buyers will use this number to reach you.</p>
 
+    <label for="bank_code">Bank</label>
+    <select id="bank_code" name="bank_code" required><option value="">Choose a bank</option>{% for name, code in banks %}<option value="{{ code }}" {% if form.get('bank_code') == code %}selected{% endif %}>{{ name }}</option>{% endfor %}</select>
+    <label for="account_number">Account number</label>
+    <input id="account_number" name="account_number" inputmode="numeric" pattern="[0-9]{10}" minlength="10" maxlength="10" value="{{ form.get('account_number', '') }}" required>
+    <label class="check"><input type="checkbox" name="own_account" required>These are my own account details</label>
     <button class="btn full" type="submit">Submit application</button>
   </form>
 </div>

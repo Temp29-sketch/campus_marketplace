@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Vendor applications · Campus Market{% endblock %}
+{% block title %}Vendor applications · {{ app_name }}{% endblock %}
 {% block content %}
 <h1>Vendor applications</h1>
 
@@ -21,10 +21,12 @@
       <h2>{{ a.business_name }}</h2>
       <span class="badge {{ a.status }}">{{ a.status }}</span>
     </header>
-    <p class="meta">
-      {{ a.category.name }} · {{ a.user.name }} · matric {{ a.user.matric_number }}<br>
+    <div class="applicant-info">{% with user=a.user, size='small' %}{% include "_avatar.html" %}{% endwith %}<div><strong>{{ a.user.name }}</strong><p class="meta">
+      {{ a.category.name }} · matric {{ a.user.matric_number }}<br>
+      {% if a.user.hostel %}{{ a.user.hostel.name }}{% if a.user.hostel_block %}, {{ a.user.hostel_block.name }}{% elif a.user.floor %}, floor {{ a.user.floor }}{% endif %}, room {{ a.user.room_number }}<br>{% endif %}
+      {% if a.bank_name %}{{ a.bank_name }} · {{ mask_account(a.account_number) }}<br>{% endif %}
       {{ a.user.school_email }} · {{ a.phone_number }} · submitted {{ a.created_at.strftime('%d %b %Y') }}
-    </p>
+    </p></div></div>
     <p>{{ a.bio }}</p>
 
     {% if a.status == 'rejected' and a.rejection_reason %}

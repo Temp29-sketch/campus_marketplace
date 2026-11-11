@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ 'Edit listing' if product else 'Add listing' }} · Campus Market{% endblock %}
+{% block title %}{{ 'Edit listing' if product else 'Add listing' }} · {{ app_name }}{% endblock %}
 {% block content %}
 <div class="card wide">
   <h1>{{ 'Edit listing' if product else 'Add a listing' }}</h1>
@@ -35,7 +35,10 @@
     </select>
 
     <label for="price">Price (₦)</label>
-    <input id="price" name="price" inputmode="decimal" value="{{ form.get('price', '') }}" placeholder="2500" required>
+    <input id="price" name="price" type="text" inputmode="decimal" autocomplete="off" data-price-input value="{{ form.get('price', '') }}" placeholder="2500" required>
+
+    <label for="stock">Stock quantity{% if not form.get('is_service') %} <span aria-label="required">*</span>{% else %} (optional){% endif %}</label>
+    <input id="stock" name="stock" type="number" min="0" max="100000" step="1" inputmode="numeric" value="{{ form.get('stock', '') }}">
 
     <label for="description">Description</label>
     <textarea id="description" name="description" rows="5" maxlength="2000">{{ form.get('description', '') }}</textarea>
@@ -56,4 +59,5 @@
     <button class="btn full" type="submit">{{ 'Save changes' if product else 'Publish listing' }}</button>
   </form>
 </div>
+<script src="{{ url_for('static', filename='price-input.js') }}" defer></script>
 {% endblock %}

@@ -1,14 +1,14 @@
 {% extends "base.html" %}
-{% block title %}Sell on Campus Market{% endblock %}
+{% block title %}Sell on {{ app_name }}{% endblock %}
 {% block content %}
 <div class="card">
   {% if sent_to %}
     <h1>Check your school email</h1>
     <p>We sent a confirmation link to <strong>{{ sent_to }}</strong>.</p>
-    <p class="muted">Open it to choose your password and continue. The link works for 24 hours. Your account isn't created until you click it.</p>
+    <p class="muted">Open it and confirm your email to create your account. The link works for 24 hours. Your account isn't created until you confirm.</p>
   {% else %}
     <h1>Sign up to sell</h1>
-    <p class="muted">Vendors use their school email so buyers know they're dealing with real students. We'll email you a link to confirm it, then you'll set a password and tell us about your business.</p>
+    <p class="muted">Vendors use their school email so buyers know they're dealing with real students. We'll email you a link to confirm it, then you can tell us about your business.</p>
     <form method="post" novalidate>
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
@@ -29,9 +29,13 @@
       <label for="matric_number">Matriculation number</label>
       <input id="matric_number" name="matric_number" value="{{ form.get('matric_number', '') }}" required>
 
+      {% set hostels = hostels %}{% include "_hostel_fields.html" %}
+      <label for="password">Password</label><input id="password" type="password" name="password" minlength="8" autocomplete="new-password" required>
+      <label for="confirm_password">Confirm password</label><input id="confirm_password" type="password" name="confirm_password" minlength="8" autocomplete="new-password" required>
       <button class="btn full" type="submit">Send confirmation link</button>
     </form>
     <p class="muted">Just want to buy? <a href="{{ url_for('auth.register') }}">Sign up as a buyer</a> with any email.</p>
   {% endif %}
 </div>
+<script src="{{ url_for('static', filename='hostel-fields.js') }}" defer></script>
 {% endblock %}

@@ -1,0 +1,2 @@
+{% if user.photo_key %}<img class="avatar avatar-{{ size|default('small') }}" src="{{ avatar_thumb_url(user.photo_key) }}" alt="{{ user.name }} profile photo">
+{% else %}<span class="avatar avatar-{{ size|default('small') }}" aria-hidden="true">{{ (user.name or '?')|trim|first|upper or '?' }}</span>{% endif %}

@@ -41,7 +41,7 @@ class Good(ProductionConfig):
     SQLALCHEMY_DATABASE_URI = "postgresql://u:p@h/db"
     MAIL_BACKEND = "smtp"
     SMTP_HOST = "smtp.example"
-    MAIL_FROM = "Campus Market <no-reply@campus.example>"
+    MAIL_FROM = "UniHub <no-reply@campus.example>"
     STORAGE_BACKEND = "s3"
     S3_BUCKET = "bucket"
     S3_ACCESS_KEY_ID = "id"
@@ -98,7 +98,7 @@ class SmtpConfig(Config):
     SMTP_PORT = 587
     SMTP_USERNAME = "user"
     SMTP_PASSWORD = "pw"
-    MAIL_FROM = "Campus Market <no-reply@campus.example>"
+    MAIL_FROM = "UniHub <no-reply@campus.example>"
     PUBLIC_BASE_URL = "https://campus.example"
 
 

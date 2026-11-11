@@ -30,7 +30,7 @@ class EmailError(RuntimeError):
 def _build_message(to: str, subject: str, body: str) -> EmailMessage:
     cfg = current_app.config
     message = EmailMessage()
-    message["From"] = cfg["MAIL_FROM"] or "Campus Market <no-reply@localhost>"
+    message["From"] = cfg["MAIL_FROM"] or f"{cfg['APP_NAME']} <no-reply@localhost>"
     message["To"] = to
     message["Subject"] = subject
     message["Date"] = formatdate(localtime=False)

@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}{{ vendor.business_name }} · Campus Market{% endblock %}
+{% block title %}{{ vendor.business_name }} · {{ app_name }}{% endblock %}
 {% block content %}
-<p><a href="{{ url_for('index') }}">← Back to listings</a></p>
+<p><a class="btn" href="{{ url_for('index') }}">← Back to listings</a></p>
 
 <section class="storefront">
-  <h1>{{ vendor.business_name }} <span class="verified" title="Verified student vendor">✓ Verified</span></h1>
+  <div class="storefront-title">{% with user=vendor, size='large' %}{% include "_avatar.html" %}{% endwith %}<h1>{{ vendor.business_name }} <span class="verified" title="Verified student vendor">✓ Verified</span></h1></div>
   <p class="muted">{{ vendor.vendor_application.category.name }} · {{ vendor.university.name }}</p>
   <p class="description">{{ vendor.vendor_application.bio }}</p>
 

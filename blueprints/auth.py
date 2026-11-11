@@ -6,25 +6,28 @@ Rules
   account (so their account and history carry over). The school email must be
   on their chosen university's domain.
 """
+import hashlib
 import re
+import secrets
+from datetime import timedelta
 from urllib.parse import urljoin, urlparse
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
+from werkzeug.security import generate_password_hash
 
 from flask_limiter.util import get_remote_address
 
 from extensions import db, limiter
-from models import ROLE_BUYER, University, User
+from models import PendingSignup, ROLE_BUYER, University, User, utcnow
 from services.links import absolute_url
 from services.mail import send_email
+from services.hostels import hostel_options, validate_address
 from services.tokens import (
     make_school_email_token,
-    make_vendor_signup_token,
     read_school_email_token,
-    read_vendor_signup_token,
 )
 
 auth_bp = Blueprint("auth", __name__)
@@ -87,47 +90,28 @@ def _school_email_conflicts(user, school_email, matric):
 def register():
     if current_user.is_authenticated:
         return redirect(url_for("index"))
-
     universities = University.query.filter_by(is_active=True).order_by(University.name).all()
-
+    form = request.form
     if request.method == "POST":
-        name = request.form.get("name", "").strip()
-        email = request.form.get("email", "").strip().lower()
-        password = request.form.get("password", "")
-        uni = _get_university(request.form.get("university_id"))
-
+        name = form.get("name", "").strip(); email = form.get("email", "").strip().lower()
+        password = form.get("password", ""); uni = _get_university(form.get("university_id"))
         errors = []
-        if not name:
-            errors.append("Please enter your name.")
-        if not EMAIL_RE.match(email):
-            errors.append("Please enter a valid email address.")
-        if len(password) < MIN_PASSWORD_LENGTH:
-            errors.append(f"Password must be at least {MIN_PASSWORD_LENGTH} characters.")
-        if uni is None:
-            errors.append("Please choose your university.")
-        if not errors and User.query.filter(
-            or_(User.email == email, User.school_email == email)
-        ).first():
-            errors.append("An account with this email already exists. Try logging in.")
-
+        if not 1 <= len(name) <= 120: errors.append("Please enter your name (up to 120 characters).")
+        if not EMAIL_RE.match(email): errors.append("Please enter a valid email address.")
+        if len(password) < MIN_PASSWORD_LENGTH: errors.append(f"Password must be at least {MIN_PASSWORD_LENGTH} characters.")
+        if uni is None: errors.append("Please choose your university.")
+        if not errors and User.query.filter(or_(User.email == email, User.school_email == email)).first(): errors.append("An account with this email already exists. Try logging in.")
+        address, address_error = validate_address(uni.id, form.get("hostel_id"), form.get("hostel_block_id"), form.get("floor"), form.get("room_number")) if uni else ({}, "Please choose your university.")
+        if address_error: errors.append(address_error)
         if not errors:
-            user = User(university=uni, name=name, email=email, role=ROLE_BUYER)
-            user.set_password(password)
-            db.session.add(user)
-            try:
-                db.session.commit()
-            except IntegrityError:
-                db.session.rollback()
-                errors.append("An account with this email already exists. Try logging in.")
+            user = User(university=uni, name=name, email=email, role=ROLE_BUYER, **address); user.set_password(password); db.session.add(user)
+            try: db.session.commit()
+            except IntegrityError: db.session.rollback(); errors.append("An account with this email already exists. Try logging in.")
             else:
-                login_user(user)
-                flash("Welcome! Your account is ready.", "success")
-                return redirect(url_for("index"))
-
-        for e in errors:
-            flash(e, "error")
-
-    return render_template("auth/register.html", universities=universities, form=request.form)
+                login_user(user); flash("Welcome! Your account is ready.", "success"); return redirect(url_for("index"))
+        for error in errors: flash(error, "error")
+    uni = _get_university(form.get("university_id"))
+    return render_template("auth/register.html", universities=universities, hostels=hostel_options(uni.id) if uni else [], form=form)
 
 
 @auth_bp.route("/login", methods=["GET", "POST"])
@@ -249,98 +233,63 @@ def confirm_school_email(token):
 @limiter.limit("5 per hour", methods=["POST"])
 @limiter.limit("3 per hour", key_func=_email_key, methods=["POST"])
 def register_vendor():
-    """Step 1: school email + matric. The account is NOT created yet."""
-    if current_user.is_authenticated:
-        return redirect(url_for("vendor.apply"))
-
+    if current_user.is_authenticated: return redirect(url_for("vendor.apply"))
     universities = University.query.filter_by(is_active=True).order_by(University.name).all()
-    sent_to = None
-
+    form = request.form; sent_to = None
     if request.method == "POST":
-        name = request.form.get("name", "").strip()
-        school_email = request.form.get("school_email", "").strip().lower()
-        matric = request.form.get("matric_number", "").strip().upper()
-        uni = _get_university(request.form.get("university_id"))
-
+        name = form.get("name", "").strip(); email = form.get("school_email", "").strip().lower()
+        matric = form.get("matric_number", "").strip().upper(); uni = _get_university(form.get("university_id"))
+        password = form.get("password", ""); confirm = form.get("confirm_password", "")
         error = None
-        if not name or len(name) > 120:
-            error = "Please enter your name."
-        elif uni is None:
-            error = "Please choose your university."
-        elif not EMAIL_RE.match(school_email):
-            error = "Please enter a valid email address."
-        elif not _domain_ok(school_email, uni.email_domain):
-            error = f"Vendors must sign up with their school email (it ends with @{uni.email_domain})."
-        elif not MATRIC_RE.match(matric):
-            error = "Please enter a valid matriculation number."
-        elif User.query.filter(or_(User.email == school_email, User.school_email == school_email)).first():
-            error = "An account with this email already exists. Log in, then choose 'Become a vendor'."
-        elif User.query.filter_by(university_id=uni.id, matric_number=matric).first():
-            error = "That matric number is already linked to another account."
-
+        if not 1 <= len(name) <= 120: error = "Please enter your name."
+        elif uni is None: error = "Please choose your university."
+        elif not EMAIL_RE.match(email): error = "Please enter a valid email address."
+        elif not _domain_ok(email, uni.email_domain): error = f"Vendors must sign up with their school email (it ends with @{uni.email_domain})."
+        elif not MATRIC_RE.match(matric): error = "Please enter a valid matriculation number."
+        elif len(password) < MIN_PASSWORD_LENGTH: error = f"Password must be at least {MIN_PASSWORD_LENGTH} characters."
+        elif password != confirm: error = "The two passwords don't match."
+        elif _identity_taken(uni.id, email, matric): error = "That school email or matric number is already linked to an account."
+        address, address_error = validate_address(uni.id, form.get("hostel_id"), form.get("hostel_block_id"), form.get("floor"), form.get("room_number")) if uni else ({}, "Please choose your university.")
+        if not error and address_error: error = address_error
         if error:
             flash(error, "error")
         else:
-            token = make_vendor_signup_token(name, school_email, matric, uni.id)
+            now = utcnow()
+            PendingSignup.query.filter_by(school_email=email).delete()
+            PendingSignup.query.filter(PendingSignup.expires_at < now).delete(synchronize_session=False)
+            token = secrets.token_urlsafe(32)
+            pending = PendingSignup(token_hash=hashlib.sha256(token.encode()).hexdigest(), name=name, school_email=email,
+                matric_number=matric, university_id=uni.id, password_hash=generate_password_hash(password),
+                expires_at=now + timedelta(seconds=current_app.config["SCHOOL_EMAIL_TOKEN_MAX_AGE"]), **address)
+            db.session.add(pending); db.session.commit()
             link = absolute_url("auth.confirm_vendor_signup", token=token)
-            send_email(
-                to=school_email,
-                subject=f"Finish creating your {uni.short_name} vendor account",
-                body=(
-                    f"Hi {name},\n\n"
-                    "Confirm your school email and choose a password to finish signing up:\n"
-                    f"{link}\n\n"
-                    "This link expires in 24 hours. If you didn't request it, ignore this email."
-                ),
-            )
-            sent_to = school_email
-
-    return render_template(
-        "auth/register_vendor.html", universities=universities, form=request.form, sent_to=sent_to
-    )
+            send_email(to=email, subject=f"Confirm your {uni.short_name} email for UniHub", body=f"Hi {name},\n\nConfirm your school email to finish creating your UniHub account:\n{link}\n\nThis link expires in 24 hours. If you didn't request it, ignore this email.")
+            sent_to = email
+    uni = _get_university(form.get("university_id"))
+    return render_template("auth/register_vendor.html", universities=universities, hostels=hostel_options(uni.id) if uni else [], form=form, sent_to=sent_to)
 
 
 @auth_bp.route("/register/vendor/confirm/<token>", methods=["GET", "POST"])
 def confirm_vendor_signup(token):
-    """Step 2: owner of the school email clicks the link and sets a password."""
-    if current_user.is_authenticated:
-        return redirect(url_for("vendor.apply"))
-
-    payload = read_vendor_signup_token(token)
-    uni = _get_university(payload["uni"]) if payload else None
-    if not payload or uni is None or not _domain_ok(payload["email"], uni.email_domain):
-        flash("That signup link is invalid or has expired. Please start again.", "error")
-        return redirect(url_for("auth.register_vendor"))
-
-    name, email, matric = payload["name"], payload["email"], payload["matric"]
-
-    if User.query.filter(or_(User.email == email, User.school_email == email)).first():
-        flash("An account with this email already exists. Please log in.", "error")
-        return redirect(url_for("auth.login"))
-    if User.query.filter_by(university_id=uni.id, matric_number=matric).first():
-        flash("That matric number is already linked to another account.", "error")
-        return redirect(url_for("auth.register_vendor"))
-
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    pending = PendingSignup.query.filter_by(token_hash=token_hash).first()
+    expired = not pending or pending.expires_at.replace(tzinfo=utcnow().tzinfo) <= utcnow()
+    if expired:
+        return render_template("auth/confirm_vendor_signup.html", valid=False), 200
+    uni = db.session.get(University, pending.university_id)
     if request.method == "POST":
-        password = request.form.get("password", "")
-        if len(password) < MIN_PASSWORD_LENGTH:
-            flash(f"Password must be at least {MIN_PASSWORD_LENGTH} characters.", "error")
-        elif password != request.form.get("confirm_password", ""):
-            flash("The two passwords don't match.", "error")
-        else:
-            # Role stays 'buyer' until an admin approves the application.
-            user = User(university=uni, name=name, email=email, role=ROLE_BUYER)
-            user.set_password(password)
-            user.mark_school_email_verified(email, matric)
-            db.session.add(user)
-            try:
-                db.session.commit()
-            except IntegrityError:
-                db.session.rollback()
-                flash("An account with this email or matric number already exists.", "error")
-                return redirect(url_for("auth.login"))
-            login_user(user)
-            flash("Account created! Now tell us about your business.", "success")
-            return redirect(url_for("vendor.apply"))
-
-    return render_template("auth/set_password.html", name=name, email=email)
+        if uni is None or not _domain_ok(pending.school_email, uni.email_domain) or _identity_taken(uni.id, pending.school_email, pending.matric_number):
+            flash("This signup can no longer be confirmed. Please start again or log in.", "error")
+            return render_template("auth/confirm_vendor_signup.html", valid=False), 200
+        user = User(university=uni, name=pending.name, email=pending.school_email, role=ROLE_BUYER,
+                    password_hash=pending.password_hash, hostel_id=pending.hostel_id,
+                    hostel_block_id=pending.hostel_block_id, floor=pending.floor, room_number=pending.room_number)
+        user.mark_school_email_verified(pending.school_email, pending.matric_number)
+        db.session.add(user); db.session.delete(pending)
+        try: db.session.commit()
+        except IntegrityError:
+            db.session.rollback(); flash("That email or matric number was just used by another account.", "error")
+            return render_template("auth/confirm_vendor_signup.html", valid=False), 200
+        login_user(user); flash("Account created! Now tell us about your business.", "success")
+        return redirect(url_for("vendor.apply"))
+    return render_template("auth/confirm_vendor_signup.html", valid=True, name=pending.name, email=pending.school_email)

@@ -1,0 +1,16 @@
+{% set selected_hostel = form.get('hostel_id', '') %}
+<label for="hostel_id">Hostel</label>
+<select id="hostel_id" name="hostel_id" required data-hostel-select>
+  <option value="">Choose a hostel</option>
+  {% for h in hostels %}<option value="{{ h.id }}" data-has-blocks="{{ 'true' if h.has_blocks else 'false' }}" data-floor-count="{{ h.floor_count or 0 }}" data-blocks='{{ h.blocks|tojson }}' {% if selected_hostel|string == h.id|string %}selected{% endif %}>{{ h.name }}</option>{% endfor %}
+</select>
+<div data-block-fields {% if selected_hostel %}hidden{% endif %}>
+  <label for="hostel_block_id">Block</label>
+  <select id="hostel_block_id" name="hostel_block_id" data-block-select data-selected="{{ form.get('hostel_block_id', '') }}"><option value="">Choose a block</option></select>
+</div>
+<div data-floor-fields {% if selected_hostel %}hidden{% endif %}>
+  <label for="floor">Floor</label>
+  <select id="floor" name="floor" data-floor-select data-selected="{{ form.get('floor', '') }}"><option value="">Choose a floor</option></select>
+</div>
+<label for="room_number">Room number</label>
+<input id="room_number" name="room_number" value="{{ form.get('room_number', '') }}" maxlength="10" required>

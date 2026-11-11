@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Profile settings · {{ app_name }}{% endblock %}
+{% block content %}
+<h1>Profile settings</h1>
+<div class="settings-grid">
+<section class="card settings-section"><h2>Profile</h2>
+  {% if user.photo_key %}{% with user=user, size='large' %}{% include "_avatar.html" %}{% endwith %}{% endif %}
+  <form method="post" action="{{ url_for('settings.profile') }}" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="profile_name">Name</label><input id="profile_name" name="name" maxlength="120" value="{{ user.name }}" required>
+    <label for="profile_photo">Replace profile photo</label><input id="profile_photo" type="file" name="profile_photo" accept="image/jpeg,image/png,image/webp">
+    {% if user.role == 'vendor' %}<p class="muted small">Vendors need a profile photo and cannot remove it.</p>{% elif user.photo_key %}<label class="check"><input type="checkbox" name="remove_photo">Remove my photo</label>{% endif %}
+    <button class="btn" type="submit">Save profile</button>
+  </form>
+</section>
+<section class="card settings-section"><h2>Delivery address</h2>
+  <form method="post" action="{{ url_for('settings.address') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% with form=form, hostels=hostels %}{% include "_hostel_fields.html" %}{% endwith %}<button class="btn" type="submit">Save address</button>
+  </form>
+</section>
+<section class="card settings-section"><h2>Password</h2>
+  <form method="post" action="{{ url_for('settings.password') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="current_password">Current password</label><input id="current_password" type="password" name="current_password" autocomplete="current-password" required>
+    <label for="new_password">New password</label><input id="new_password" type="password" name="new_password" minlength="8" autocomplete="new-password" required>
+    <label for="confirm_password">Confirm new password</label><input id="confirm_password" type="password" name="confirm_password" minlength="8" autocomplete="new-password" required>
+    <button class="btn" type="submit">Change password</button>
+  </form>
+</section>
+<section class="card settings-section"><h2>Appearance</h2>
+  <form method="post" action="{{ url_for('settings.appearance') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label class="check"><input type="radio" name="theme" value="light">Light</label>
+    <label class="check"><input type="radio" name="theme" value="dark">Dark</label>
+    <label class="check"><input type="radio" name="theme" value="device">Device default</label>
+    <button class="btn" type="submit">Save appearance</button>
+  </form>
+</section>
+{% if user.role == 'vendor' and user.vendor_application %}{% set a=user.vendor_application %}
+<section class="card settings-section"><h2>Business profile</h2>
+  <p><strong>{{ a.business_name }}</strong> <span class="muted small">Contact an admin to change your business name</span></p>
+  <form method="post" action="{{ url_for('settings.business') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="bio">About your business</label><textarea id="bio" name="bio" minlength="20" maxlength="1000" required>{{ a.bio }}</textarea>
+    <label for="phone_number">Phone / WhatsApp number</label><input id="phone_number" name="phone_number" value="{{ a.phone_number }}" required>
+    <button class="btn" type="submit">Save business profile</button>
+  </form>
+</section>
+<section class="card settings-section"><h2>Bank details</h2>
+  <p>{{ a.bank_name }} · {{ mask_account(a.account_number) }}</p>
+  <details><summary>Change bank details</summary>
+    <form method="post" action="{{ url_for('settings.bank') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="bank_code">Bank</label><select id="bank_code" name="bank_code" required><option value="">Choose a bank</option>{% for name, code in banks %}<option value="{{ code }}">{{ name }}</option>{% endfor %}</select>
+      <label for="account_number">Account number</label><input id="account_number" name="account_number" inputmode="numeric" pattern="[0-9]{10}" maxlength="10" required>
+      <label for="bank_password">Current password</label><input id="bank_password" type="password" name="current_password" autocomplete="current-password" required>
+      <button class="btn" type="submit">Update bank details</button>
+    </form>
+  </details>
+</section>{% endif %}
+<section class="card settings-section"><h2>Account information</h2>
+  <dl class="settings-list"><dt>Login email</dt><dd>{{ user.email }}</dd>
+  {% if user.role == 'vendor' %}<dt>School email</dt><dd>{{ user.school_email }}</dd><dt>Matric number</dt><dd>{{ user.matric_number }}</dd><dt>University</dt><dd>{{ user.university.name }}</dd>{% endif %}</dl>
+</section>
+</div>
+<script src="{{ url_for('static', filename='settings.js') }}" defer></script>
+{% endblock %}

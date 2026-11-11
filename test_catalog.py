@@ -47,8 +47,9 @@ with app.app_context():
 
     def make_vendor(uni, name, email, matric, business, phone, approve=True):
         user = make_user(uni, name, email, matric)
+        user.photo_key = "fixture.webp"
         application = VendorApplication(user=user, business_name=business, category=cats["food"],
-                                        bio="We sell good things on campus.", phone_number=phone)
+                                        bio="We sell good things on campus.", phone_number=phone, bank_code="044", bank_name="Access Bank", account_number="1234567890")
         db.session.add(application)
         if approve:
             application.approve(admin)

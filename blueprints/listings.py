@@ -22,6 +22,7 @@ listings_bp = Blueprint("listings", __name__, url_prefix="/vendor")
 TITLE_MAX = 150
 DESCRIPTION_MAX = 2000
 PRICE_MAX = Decimal("10000000")  # N10m
+STOCK_MAX = 100000
 
 
 def vendor_required(view):
@@ -60,8 +61,21 @@ def _read_fields(form):
     except (InvalidOperation, ValueError):
         price = None
 
-    error = None
-    if not (2 <= len(title) <= TITLE_MAX):
+    raw_stock = form.get("stock", "").strip()
+    stock = None
+    stock_error = None
+    if raw_stock:
+        if not raw_stock.isdigit():
+            stock_error = "Stock quantity must be a whole number from 0 to 100000."
+        else:
+            stock = int(raw_stock)
+            if stock > STOCK_MAX:
+                stock_error = "Stock quantity must be between 0 and 100000."
+    elif not is_service:
+        stock_error = "Stock quantity is required for products."
+
+    error = stock_error
+    if not error and not (2 <= len(title) <= TITLE_MAX):
         error = f"Title must be 2-{TITLE_MAX} characters."
     elif len(description) > DESCRIPTION_MAX:
         error = f"Description is too long (max {DESCRIPTION_MAX} characters)."
@@ -70,7 +84,7 @@ def _read_fields(form):
     elif price is None or not price.is_finite() or not (0 < price <= PRICE_MAX):
         error = "Enter a valid price in naira, e.g. 2500."
 
-    fields = dict(title=title, description=description, price=price, category=category, is_service=is_service)
+    fields = dict(title=title, description=description, price=price, category=category, is_service=is_service, stock=stock)
     return fields, error
 
 
@@ -107,6 +121,7 @@ def _form_defaults(product):
         "category_id": str(product.category_id),
         "is_service": "on" if product.is_service else "",
         "is_available": "on" if product.is_available else "",
+        "stock": "" if product.stock is None else str(product.stock),
     }
 
 
@@ -151,6 +166,8 @@ def new_product():
                 description=fields["description"],
                 price=fields["price"],
                 is_service=fields["is_service"],
+                stock=fields["stock"],
+                is_available=fields["stock"] != 0,
             )
             product.images = [ProductImage(storage_key=k, position=i) for i, k in enumerate(keys)]
             db.session.add(product)
@@ -194,8 +211,12 @@ def edit_product(product_id):
             product.description = fields["description"]
             product.price = fields["price"]
             product.category = fields["category"]
+            was_sold_out = product.stock == 0
             product.is_service = fields["is_service"]
-            product.is_available = "is_available" in form
+            product.stock = fields["stock"]
+            product.is_available = False if product.stock == 0 else (
+                True if was_sold_out and product.stock is not None and product.stock > 0 else "is_available" in form
+            )
             start = max((i.position for i in product.images), default=-1) + 1
             for offset, key in enumerate(keys):
                 product.images.append(ProductImage(storage_key=key, position=start + offset))
@@ -210,6 +231,9 @@ def edit_product(product_id):
 @vendor_required
 def toggle_availability(product_id):
     product = _own_product_or_404(product_id)
+    if not product.is_available and product.stock == 0:
+        flash("Add stock first.", "error")
+        return redirect(url_for("listings.my_products"))
     product.is_available = not product.is_available
     db.session.commit()
     flash("Marked as available." if product.is_available else "Marked as sold out.", "success")

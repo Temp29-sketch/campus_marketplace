@@ -8,7 +8,7 @@ from app import create_app, seed_defaults
 from config import TestConfig
 from extensions import db
 from models import (
-    Category, Product, ProductImage, University, User, VendorApplication,
+    Category, Hostel, Product, ProductImage, University, User, VendorApplication,
 )
 
 app = create_app(TestConfig)
@@ -34,10 +34,11 @@ with app.app_context():
     db.session.commit()
     bingham_id, admin_id = bingham.id, admin.id
     food_id = Category.query.filter_by(slug="food").one().id
+    boys_hostel_id = Hostel.query.filter_by(name="New Hostel (Boys)").one().id
 
 # 1. A student registers as a buyer with a gmail address.
 r = client.post("/register", data=dict(
-    name="Ada", email="ada@gmail.com", password="password123", university_id=bingham_id))
+    name="Ada", email="ada@gmail.com", password="password123", university_id=bingham_id, hostel_id=boys_hostel_id, floor="1", room_number="A12"))
 assert r.status_code == 302
 with app.app_context():
     ada = User.query.filter_by(email="ada@gmail.com").one()
@@ -69,9 +70,11 @@ with app.app_context():
 print("school email verified")
 
 # 4. Application form validation, then a good submission (phone gets normalised).
+with app.app_context():
+    ada = db.session.get(User, ada_id); ada.photo_key = "fixture.webp"; db.session.commit()
 good = dict(business_name="Ada Bites", category_id=food_id,
             bio="Fresh small chops and meat pies delivered around campus.",
-            phone_number="0801 234 5678")
+            phone_number="0801 234 5678", bank_code="044", account_number="1234567890", own_account="on")
 assert client.get("/become-vendor/apply").status_code == 200
 r = client.post("/become-vendor/apply", data={**good, "phone_number": "12345"})
 assert r.status_code == 200
@@ -118,6 +121,7 @@ with app.app_context():
     bob = User(university=bingham, name="Bob", email="bob@gmail.com")
     bob.set_password("password123")
     bob.mark_school_email_verified("bob@binghamuni.edu.ng", "19/0002")
+    bob.photo_key = "fixture.webp"
     db.session.add(bob)
     db.session.commit()
     bob_id = bob.id
@@ -203,21 +207,19 @@ with app.app_context():
 fresh = app.test_client()
 before = len(outbox)
 r = fresh.post("/register/vendor", data=dict(
-    name="Chidi", university_id=bingham_id, school_email="chidi@gmail.com", matric_number="20/0003"))
+    name="Chidi", university_id=bingham_id, school_email="chidi@gmail.com", matric_number="20/0003", password="password123", confirm_password="password123", hostel_id=boys_hostel_id, floor="2", room_number="C3"))
 assert r.status_code == 200 and len(outbox) == before  # non-school email refused
 r = fresh.post("/register/vendor", data=dict(
-    name="Chidi", university_id=bingham_id, school_email="chidi@binghamuni.edu.ng", matric_number="20/0003"))
+    name="Chidi", university_id=bingham_id, school_email="chidi@binghamuni.edu.ng", matric_number="20/0003", password="password123", confirm_password="password123", hostel_id=boys_hostel_id, floor="2", room_number="C3"))
 assert r.status_code == 200 and len(outbox) == before + 1
 with app.app_context():
     assert User.query.filter_by(email="chidi@binghamuni.edu.ng").count() == 0  # nothing created yet
 signup_token = re.search(r"/register/vendor/confirm/(\S+)", outbox[-1]["body"]).group(1)
-assert fresh.get("/register/vendor/confirm/garbage").status_code == 302
+assert fresh.get("/register/vendor/confirm/garbage").status_code == 200
 assert fresh.get(f"/register/vendor/confirm/{signup_token}").status_code == 200
-r = fresh.post(f"/register/vendor/confirm/{signup_token}", data=dict(password="password123", confirm_password="nope"))
-assert r.status_code == 200
 with app.app_context():
     assert User.query.filter_by(email="chidi@binghamuni.edu.ng").count() == 0
-r = fresh.post(f"/register/vendor/confirm/{signup_token}", data=dict(password="password123", confirm_password="password123"))
+r = fresh.post(f"/register/vendor/confirm/{signup_token}", data={})
 assert r.status_code == 302 and r.headers["Location"].endswith("/become-vendor/apply")
 with app.app_context():
     chidi = User.query.filter_by(email="chidi@binghamuni.edu.ng").one()
@@ -237,7 +239,7 @@ def png_bytes(size=(3000, 2000), color=(200, 40, 40)):
 
 
 def listing(title="Jollof rice", **extra):
-    data = dict(title=title, category_id=food_id, price="1,500", description="Tasty", **extra)
+    data = dict(title=title, category_id=food_id, price="1,500", description="Tasty", stock="12", **extra)
     return data
 
 

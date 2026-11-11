@@ -115,7 +115,7 @@ def approve(application_id):
             body=(
                 f"Hi {application.user.name},\n\n"
                 f"Good news - {application.business_name} is approved. "
-                "You can now list products and services on Campus Market.\n"
+                "You can now list products and services on UniHub.\n"
             ),
         )
         flash(f"Approved {application.business_name}.", "success")
@@ -256,7 +256,7 @@ def remove_listing(report_id):
         subject="One of your listings was removed",
         body=(
             f"Hi {vendor.name},\n\n"
-            f'An admin removed your listing "{product.title}" from Campus Market.\n'
+            f'An admin removed your listing "{product.title}" from UniHub.\n'
             f"Reason: {reason}\n\n"
             "If you think this was a mistake, reply to this email or contact your campus admin.\n"
         ),
@@ -292,7 +292,7 @@ def revoke_vendor(report_id):
         subject="Your vendor access was removed",
         body=(
             f"Hi {vendor.name},\n\n"
-            f"An admin removed vendor access for {business} on Campus Market, and your listings are no longer visible.\n"
+            f"An admin removed vendor access for {business} on UniHub, and your listings are no longer visible.\n"
             f"Reason: {reason}\n\n"
             "You can update your application and apply again from your account.\n"
         ),
@@ -317,7 +317,7 @@ def restore_listing(product_id):
             subject="Your listing was restored",
             body=(
                 f"Hi {product.vendor.name},\n\n"
-                f'Your listing "{product.title}" was restored on Campus Market.\n'
+                f'Your listing "{product.title}" was restored on UniHub.\n'
             ),
         )
         flash(f"Restored “{product.title}”.", "success")

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Sign up · Campus Market{% endblock %}
+{% block title %}Sign up · {{ app_name }}{% endblock %}
 {% block content %}
 <div class="card">
   <h1>Create your account</h1>
@@ -21,6 +21,8 @@
       {% endfor %}
     </select>
 
+    {% set hostels = hostels %}{% include "_hostel_fields.html" %}
+
     <label for="password">Password</label>
     <input id="password" type="password" name="password" minlength="8" autocomplete="new-password" required>
 
@@ -29,4 +31,5 @@
   <p class="muted">Already have an account? <a href="{{ url_for('auth.login') }}">Log in</a></p>
   <p class="muted">Want to sell? <a href="{{ url_for('auth.register_vendor') }}">Sign up as a vendor</a></p>
 </div>
+<script src="{{ url_for('static', filename='hostel-fields.js') }}" defer></script>
 {% endblock %}

@@ -62,3 +62,14 @@ def process_upload(file_storage):
 
     img = _to_rgb(ImageOps.exif_transpose(img))
     return _encode(img, cfg["IMAGE_MAX_SIDE"]), _encode(img, cfg["THUMB_MAX_SIDE"])
+
+
+def process_avatar(file_storage):
+    """Return square 512px and 128px WebP avatar bytes with the upload checks applied."""
+    full, _ = process_upload(file_storage)
+    with Image.open(io.BytesIO(full)) as img:
+        square = ImageOps.fit(img.convert("RGB"), (512, 512), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
+        thumb = square.resize((128, 128), Image.Resampling.LANCZOS)
+        def encode(image):
+            out = io.BytesIO(); image.save(out, "WEBP", quality=82, method=4); return out.getvalue()
+        return encode(square), encode(thumb)

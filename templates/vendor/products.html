@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}My listings · Campus Market{% endblock %}
+{% block title %}My listings · {{ app_name }}{% endblock %}
 {% block content %}
 <div class="page-head">
   <h1>My listings</h1>
@@ -21,6 +21,7 @@
       <div class="body">
         <h2>{{ p.title }}</h2>
         <p class="price">{{ p.price|naira }}</p>
+        {% if p.stock is not none %}<p class="stock-note">{{ 'Sold out' if p.stock == 0 else p.stock ~ ' in stock' }}</p>{% endif %}
         <p class="meta">{{ p.category.name }}{% if p.is_service %} · Service{% endif %}
           {% if p.is_removed %}
             <span class="badge rejected">Removed by admin</span>

@@ -3,27 +3,34 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}Campus Market{% endblock %}</title>
+  <title>{% block title %}{{ app_name }}{% endblock %}</title>
+  <script src="{{ url_for('static', filename='theme-init.js') }}"></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
   <header class="nav">
-    <a class="brand" href="{{ url_for('index') }}">Campus<span>Market</span></a>
+    <a class="brand" href="{{ url_for('index') }}">Uni<span>Hub</span></a>
     <nav>
       {% if current_user.is_authenticated %}
         {% if current_user.role == 'buyer' %}
-          <a href="{{ url_for('vendor.apply') }}">Become a vendor</a>
+          <a class="btn" href="{{ url_for('vendor.apply') }}">Become a vendor</a>
         {% elif current_user.role == 'vendor' %}
-          <a href="{{ url_for('listings.my_products') }}">My listings</a>
+          <a class="btn" href="{{ url_for('listings.my_products') }}">My listings</a>
         {% elif current_user.role == 'admin' %}
-          <a href="{{ url_for('admin.applications') }}">Applications</a>
-          <a href="{{ url_for('admin.reports') }}">Reports</a>
+          <a class="btn" href="{{ url_for('admin.applications') }}">Applications</a>
+          <a class="btn" href="{{ url_for('admin.reports') }}">Reports</a>
         {% endif %}
-        <span class="who">{{ current_user.name }}</span>
-        <form method="post" action="{{ url_for('auth.logout') }}" class="inline">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button class="link" type="submit">Log out</button>
-        </form>
+        <details class="user-menu">
+          <summary aria-label="Open user menu">{% with user=current_user %}{% include "_avatar.html" %}{% endwith %}</summary>
+          <div class="user-menu-panel">
+            <div class="user-menu-user"><strong>{{ current_user.name or '?' }}</strong><span>{{ current_user.email }}</span></div>
+            {% if current_user.role != 'admin' %}<a href="{{ url_for('settings.index') }}">Profile settings</a>{% endif %}
+            <form method="post" action="{{ url_for('auth.logout') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="link" type="submit">Log out</button>
+            </form>
+          </div>
+        </details>
       {% else %}
         <a href="{{ url_for('auth.register_vendor') }}">Sell</a>
         <a href="{{ url_for('auth.login') }}">Log in</a>

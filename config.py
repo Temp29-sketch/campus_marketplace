@@ -9,6 +9,7 @@ import tempfile
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 DEV_SECRET_KEY = "dev-only-change-me"
+APP_NAME = "UniHub"
 
 
 def _bool(name: str, default: bool = False) -> bool:
@@ -19,7 +20,7 @@ def _bool(name: str, default: bool = False) -> bool:
 def _database_url() -> str:
     url = os.environ.get("DATABASE_URL", "").strip()
     if not url:
-        return "sqlite:///" + os.path.join(BASE_DIR, "campus_market.db")
+        return "sqlite:///" + os.path.join(BASE_DIR, "unihub.db")
     if url.startswith("postgres://"):  # older hosts hand out this form; SQLAlchemy 2 wants postgresql://
         url = "postgresql://" + url[len("postgres://"):]
     return url
@@ -27,6 +28,8 @@ def _database_url() -> str:
 
 class Config:
     """Development defaults."""
+
+    APP_NAME = APP_NAME
 
     ENV_NAME = "development"
     SECRET_KEY = os.environ.get("SECRET_KEY", DEV_SECRET_KEY)
@@ -48,7 +51,7 @@ class Config:
 
     # Email: "console" prints messages (dev); "smtp" really sends them.
     MAIL_BACKEND = os.environ.get("MAIL_BACKEND", "console")
-    MAIL_FROM = os.environ.get("MAIL_FROM", "")  # e.g. "Campus Market <no-reply@yourdomain.com>"
+    MAIL_FROM = os.environ.get("MAIL_FROM", "")  # e.g. "UniHub <no-reply@yourdomain.com>"
     SMTP_HOST = os.environ.get("SMTP_HOST", "")
     SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
     SMTP_USERNAME = os.environ.get("SMTP_USERNAME", "")

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Campus Market{% endblock %}
+{% block title %}{{ app_name }}{% endblock %}
 {% block content %}
 {% if not current_user.is_authenticated %}
 <section class="hero compact">

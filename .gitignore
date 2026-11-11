@@ -6,3 +6,5 @@ venv/
 uploads/
 *.db
 instance/
+
+unihub.db

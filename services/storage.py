@@ -15,7 +15,7 @@ import uuid
 
 from flask import current_app, url_for
 
-from services.images import process_upload
+from services.images import process_upload, process_avatar
 
 log = logging.getLogger(__name__)
 CACHE_CONTROL = "public, max-age=31536000, immutable"  # keys are random and never reused
@@ -100,6 +100,41 @@ def save_image(file_storage) -> str:
         raise
     return key
 
+
+
+def save_avatar(file_storage) -> str:
+    full, thumb = process_avatar(file_storage)
+    key = f"{uuid.uuid4().hex}.webp"
+    objects = [(key, full), (thumb_key(key), thumb)]
+    if _use_s3():
+        stored = []
+        try:
+            for name, data in objects:
+                _s3_client().put_object(Bucket=current_app.config["S3_BUCKET"], Key=name, Body=data, ContentType="image/webp", CacheControl=CACHE_CONTROL)
+                stored.append(name)
+        except Exception:
+            _s3_delete(stored); raise
+    else:
+        paths = [os.path.join(_folder(), name) for name, _ in objects]
+        try:
+            for path, (_, data) in zip(paths, objects):
+                with open(path, "wb") as fh: fh.write(data)
+        except Exception:
+            for path in paths: _remove(path)
+            raise
+    return key
+
+
+def delete_avatar_files(keys):
+    delete_image_files(keys)
+
+
+def avatar_url(key):
+    return _public_url(key)
+
+
+def avatar_thumb_url(key):
+    return _public_url(thumb_key(key))
 
 def delete_image_files(keys) -> None:
     names = [name for key in keys for name in (key, thumb_key(key))]

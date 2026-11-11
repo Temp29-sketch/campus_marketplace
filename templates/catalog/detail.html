@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}{{ product.title }} · Campus Market{% endblock %}
+{% block title %}{{ product.title }} · {{ app_name }}{% endblock %}
 {% block content %}
-<p><a href="{{ url_for('index') }}">← Back to listings</a></p>
+<p><a class="btn" href="{{ url_for('index') }}">← Back to listings</a></p>
 
 <div class="detail">
   <div class="gallery">
@@ -29,6 +29,7 @@
       {% if product.is_service %}<span class="badge cat">Service</span>{% endif %}
       {% if not product.is_available %}<span class="badge rejected">Sold out</span>{% endif %}
     </p>
+    {% if product.stock is not none and product.is_available %}<p class="stock-note">{{ 'Only ' ~ product.stock ~ ' left' if product.stock <= 5 else product.stock ~ ' in stock' }}</p>{% endif %}
     {% if product.description %}<p class="description">{{ product.description }}</p>{% endif %}
     {% if not current_user.is_authenticated %}
       <p class="small"><a href="{{ url_for('auth.login', next=url_for('reports.new', product_id=product.id)) }}">Log in to report this listing</a></p>
@@ -38,6 +39,7 @@
 
     <div class="seller card-lite">
       <p class="muted small">Sold by</p>
+      {% with user=product.vendor, size='small' %}{% include "_avatar.html" %}{% endwith %}
       <h2><a href="{{ url_for('catalog.store', vendor_id=product.vendor_id) }}">{{ product.business_name }}</a>
         <span class="verified" title="Verified student vendor">✓ Verified</span></h2>
 

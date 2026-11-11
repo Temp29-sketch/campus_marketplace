@@ -4,7 +4,7 @@ import re
 from decimal import Decimal
 
 import click
-from flask import Flask, flash, redirect, render_template, request, send_from_directory, url_for
+from flask import Flask, flash, jsonify, redirect, render_template, request, send_from_directory, url_for
 from flask_wtf.csrf import CSRFError
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -39,6 +39,7 @@ def create_app(config_class=None):
 
     app = Flask(__name__)
     app.config.from_object(config_class)
+    app.context_processor(lambda: {"app_name": app.config["APP_NAME"]})
     production = app.config["ENV_NAME"] == "production"
     if production:
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -67,8 +68,10 @@ def create_app(config_class=None):
     from blueprints.catalog import catalog_bp, feed
     from blueprints.listings import listings_bp
     from blueprints.reports import reports_bp
+    from blueprints.settings import settings_bp
     from blueprints.vendor import vendor_bp
-    from services.storage import image_url, thumb_url
+    from services.storage import avatar_thumb_url, avatar_url, image_url, thumb_url
+    from services.banks import mask_account
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(vendor_bp)
@@ -76,11 +79,21 @@ def create_app(config_class=None):
     app.register_blueprint(admin_bp)
     app.register_blueprint(catalog_bp)
     app.register_blueprint(reports_bp)
+    app.register_blueprint(settings_bp)
     app.add_url_rule("/", endpoint="index", view_func=feed)  # the catalog is the home page
 
+    @app.get("/api/hostels")
+    @limiter.limit("60 per minute")
+    def api_hostels():
+        from services.hostels import hostel_options
+        return jsonify(hostels=hostel_options(request.args.get("university_id")))
+
+    app.add_template_global(avatar_url, "avatar_url")
+    app.add_template_global(avatar_thumb_url, "avatar_thumb_url")
     app.add_template_global(image_url, "image_url")
     app.add_template_global(thumb_url, "thumb_url")
     app.add_template_filter(naira, "naira")
+    app.add_template_global(mask_account, "mask_account")
 
     @app.route("/media/<path:filename>")
     def media(filename):
@@ -134,6 +147,7 @@ def create_app(config_class=None):
 def seed_defaults():
     """Idempotent: default categories and the launch university (Bingham)."""
     from models import DEFAULT_CATEGORIES, Category, University
+    from services.hostels import seed_hostels
 
     for name in DEFAULT_CATEGORIES:
         if not Category.query.filter_by(slug=slugify(name)).first():
@@ -143,6 +157,10 @@ def seed_defaults():
         db.session.add(
             University(name="Bingham University", short_name="BINGHAM", email_domain="binghamuni.edu.ng")
         )
+    db.session.flush()
+    bingham = University.query.filter_by(short_name="BINGHAM").first()
+    if bingham:
+        seed_hostels(bingham.id)
     db.session.commit()
 
 

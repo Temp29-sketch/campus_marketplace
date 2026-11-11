@@ -1,8 +1,8 @@
-# Campus Market
+# UniHub
 
 A campus marketplace: students browse a clean, categorised feed; verified student vendors run their
-own storefronts instead of spamming class group chats. Flask + SQLAlchemy. Launching at Bingham
-University; every campus is just a row in the `universities` table.
+own storefronts instead of spamming class group chats. Flask + SQLAlchemy. UniHub supports multiple
+campuses, each stored as a row in the `universities` table.
 
 ## Run it locally
 
@@ -10,7 +10,7 @@ University; every campus is just a row in the `universities` table.
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env                      # defaults are fine for development
-flask --app app init-db                   # creates tables, seeds categories + Bingham
+flask --app app init-db                   # creates tables, seeds categories + campus address options
 flask --app app create-admin you@example.com "Your Name"
 flask --app app run --debug
 ```
@@ -24,15 +24,25 @@ python smoke_test.py        # signup -> verification -> application -> approval 
 python test_catalog.py      # feed, filters, search, contact rules
 python test_moderation.py   # reports, removal, vendor revocation
 python test_services.py     # production config, email, photo storage, headers (no database)
+python test_stock.py        # product stock behavior
+python test_accounts.py     # accounts, hostel addresses, photos, banking, settings and privacy
 ```
+
+## Accounts and campus addresses
+
+Buyer signup collects a delivery hostel, block or floor, and room. Vendor signup collects the same address and password before sending a confirmation email; opening the link only previews the confirmation page. The user account is created only after pressing **Confirm my email**.
+
+Profile settings let buyers and vendors update their profile, address, password, and appearance. Vendors can also edit their business details and securely replace bank information. Hostel choices are seeded in `services/hostels.py`; confirm the listed floor counts and add the girls' old-hostel block names before launch. Bank codes are a starting list in `services/banks.py` and should be verified against Paystack's List Banks API.
+
+The default database is `unihub.db`. After pulling changes that add or alter tables, delete and recreate your local development database (`rm campus_market.db unihub.db`, then `flask --app app init-db`) and create the admin again.
 
 ## How it works
 
 | Who | Can do |
 |---|---|
 | Buyer | Sign up with any email, browse, search, contact sellers, report listings |
-| Vendor | Sign up with a **school email** (verified by link), apply, get approved, list products/services with photos |
-| Admin | Approve/reject vendor applications, review reports, remove listings, revoke vendors. Only for their own campus. Created with `flask create-admin`, never by signup |
+| Vendor | Sign up with a **school email** (password and hostel address entered first; email confirmation creates the account), apply with a profile photo and bank details, get approved, list products/services with photos |
+| Admin | Approve/reject vendor applications, review reports, remove listings, revoke vendors. Only for their own campus. Created with `flask --app app create-admin`, never by signup |
 
 Vendors are also buyers, so they can buy from each other. Phone numbers and WhatsApp buttons are shown to
 signed-in students only (`REQUIRE_LOGIN_FOR_CONTACT` in `config.py`).

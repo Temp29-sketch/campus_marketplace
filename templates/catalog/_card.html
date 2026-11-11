@@ -9,6 +9,7 @@
   <div class="body">
     <h2><a href="{{ url_for('catalog.item', product_id=p.id) }}">{{ p.title }}</a></h2>
     <p class="price">{{ p.price|naira }}</p>
+    {% if p.stock is not none and 1 <= p.stock <= 5 %}<p class="stock-note">Only {{ p.stock }} left</p>{% endif %}
     <p class="meta">
       <span class="badge cat">{{ p.category.name }}</span>
       {% if p.is_service %}<span class="badge cat">Service</span>{% endif %}

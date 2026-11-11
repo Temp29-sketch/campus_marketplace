@@ -11,6 +11,9 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
 from extensions import db
+from services.images import ImageError
+from services.storage import delete_avatar_files, save_avatar
+from services.banks import BANKS, BANK_BY_CODE
 from models import APP_PENDING, APP_REJECTED, ROLE_BUYER, Category, User, VendorApplication
 
 vendor_bp = Blueprint("vendor", __name__)
@@ -65,58 +68,61 @@ def apply():
 
     if request.method == "POST":
         form = request.form
-        business_name = form.get("business_name", "").strip()
-        bio = form.get("bio", "").strip()
-        phone = normalize_phone(form.get("phone_number", ""))
-        try:
-            category = db.session.get(Category, int(form.get("category_id", "")))
-        except ValueError:
-            category = None
-
+        business_name = form.get("business_name", "").strip(); bio = form.get("bio", "").strip()
+        phone = normalize_phone(form.get("phone_number", "")); bank_code = form.get("bank_code", "")
+        account_number = form.get("account_number", "").strip()
+        upload = request.files.get("profile_photo")
+        try: category = db.session.get(Category, int(form.get("category_id", "")))
+        except ValueError: category = None
         error = None
-        if not (BUSINESS_NAME_MIN <= len(business_name) <= BUSINESS_NAME_MAX):
-            error = f"Business name must be {BUSINESS_NAME_MIN}-{BUSINESS_NAME_MAX} characters."
-        elif category is None:
-            error = "Please choose a category."
-        elif not (BIO_MIN <= len(bio) <= BIO_MAX):
-            error = f"Tell buyers about your business in {BIO_MIN}-{BIO_MAX} characters."
-        elif phone is None:
-            error = "Enter a valid Nigerian phone number, e.g. 0801 234 5678."
-        elif _name_taken(user, business_name):
-            error = "A business with that name already exists on your campus. Please pick another."
-
+        if not (BUSINESS_NAME_MIN <= len(business_name) <= BUSINESS_NAME_MAX): error = f"Business name must be {BUSINESS_NAME_MIN}-{BUSINESS_NAME_MAX} characters."
+        elif category is None: error = "Please choose a category."
+        elif not (BIO_MIN <= len(bio) <= BIO_MAX): error = f"Tell buyers about your business in {BIO_MIN}-{BIO_MAX} characters."
+        elif phone is None: error = "Enter a valid Nigerian phone number, e.g. 0801 234 5678."
+        elif _name_taken(user, business_name): error = "A business with that name already exists on your campus. Please pick another."
+        elif bank_code not in BANK_BY_CODE: error = "Please choose a bank."
+        elif not re.fullmatch(r"\d{10}", account_number): error = "Account number must be exactly 10 digits."
+        elif "own_account" not in form: error = "Confirm these are your own account details."
+        elif not user.photo_key and (not upload or not upload.filename): error = "Upload a profile photo."
         if error:
             flash(error, "error")
         else:
-            if existing:  # resubmission after rejection
-                application = existing
-                application.reviewed_by = None
-                application.reviewed_at = None
-                application.rejection_reason = None
+            new_key = None
+            if upload and upload.filename:
+                try: new_key = save_avatar(upload)
+                except ImageError as exc: error = str(exc)
+            if error:
+                flash(error, "error")
             else:
-                application = VendorApplication(user=user)
-                db.session.add(application)
-            application.business_name = business_name
-            application.category = category
-            application.bio = bio
-            application.phone_number = phone
-            application.status = APP_PENDING
-            try:
-                db.session.commit()
-            except IntegrityError:
-                db.session.rollback()
-                flash("You already have an application on file.", "error")
-            else:
-                flash("Application submitted! An admin will review it shortly.", "success")
-            return redirect(url_for("vendor.apply"))
+                application = existing or VendorApplication(user=user)
+                if existing:
+                    application.reviewed_by = None; application.reviewed_at = None; application.rejection_reason = None
+                else: db.session.add(application)
+                application.business_name = business_name; application.category = category; application.bio = bio
+                application.phone_number = phone; application.bank_code = bank_code
+                application.bank_name = BANK_BY_CODE[bank_code]; application.account_number = account_number
+                application.status = APP_PENDING
+                old_key = user.photo_key
+                if new_key: user.photo_key = new_key
+                try: db.session.commit()
+                except Exception:
+                    db.session.rollback()
+                    if new_key: delete_avatar_files([new_key])
+                    flash("Couldn't save your application. Please try again.", "error")
+                else:
+                    if new_key and old_key: delete_avatar_files([old_key])
+                    flash("Application submitted! An admin will review it shortly.", "success")
+                return redirect(url_for("vendor.apply"))
     elif existing and existing.status == APP_REJECTED:  # prefill with the previous attempt
         form = {
             "business_name": existing.business_name,
             "category_id": str(existing.category_id),
             "bio": existing.bio,
             "phone_number": existing.phone_number,
+            "bank_code": existing.bank_code or "",
+            "account_number": existing.account_number or "",
         }
     else:
         form = {}
 
-    return render_template("vendor/apply.html", categories=categories, form=form, application=existing)
+    return render_template("vendor/apply.html", categories=categories, form=form, application=existing, banks=BANKS)
