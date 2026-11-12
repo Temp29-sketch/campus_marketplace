@@ -25,6 +25,7 @@
 
     <label for="title">Title</label>
     <input id="title" name="title" value="{{ form.get('title', '') }}" maxlength="150" required>
+    {% with field='title' %}{% include "_field_error.html" %}{% endwith %}
 
     <label for="category_id">Category</label>
     <select id="category_id" name="category_id" required>
@@ -33,15 +34,19 @@
         <option value="{{ c.id }}" {% if form.get('category_id') == c.id|string %}selected{% endif %}>{{ c.name }}</option>
       {% endfor %}
     </select>
+    {% with field='category_id' %}{% include "_field_error.html" %}{% endwith %}
 
     <label for="price">Price (₦)</label>
     <input id="price" name="price" type="text" inputmode="decimal" autocomplete="off" data-price-input value="{{ form.get('price', '') }}" placeholder="2500" required>
+    {% with field='price' %}{% include "_field_error.html" %}{% endwith %}
 
     <label for="stock">Stock quantity{% if not form.get('is_service') %} <span aria-label="required">*</span>{% else %} (optional){% endif %}</label>
     <input id="stock" name="stock" type="number" min="0" max="100000" step="1" inputmode="numeric" value="{{ form.get('stock', '') }}">
+    {% with field='stock' %}{% include "_field_error.html" %}{% endwith %}
 
     <label for="description">Description</label>
     <textarea id="description" name="description" rows="5" maxlength="2000">{{ form.get('description', '') }}</textarea>
+    {% with field='description' %}{% include "_field_error.html" %}{% endwith %}
 
     <label class="check"><input type="checkbox" name="is_service" {% if form.get('is_service') %}checked{% endif %}>
       This is a service (photos optional)</label>
@@ -53,6 +58,7 @@
 
     <label for="images">{{ 'Add photos' if product else 'Photos' }}</label>
     <input id="images" type="file" name="images" accept="image/jpeg,image/png,image/webp" multiple>
+    {% with field='images' %}{% include "_field_error.html" %}{% endwith %}
     <p class="muted small">JPG, PNG or WebP, up to 10 MB each. Max {{ config.MAX_IMAGES_PER_PRODUCT }} per listing; the first is the cover.
       {% if request.method == 'POST' %}Please choose your photos again.{% endif %}</p>
 

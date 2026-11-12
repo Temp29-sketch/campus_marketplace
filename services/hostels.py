@@ -2,10 +2,10 @@
 from extensions import db
 from models import Hostel, HostelBlock, University
 
-# Seed source for the Bingham campus. TODO confirm floor counts; TODO supply Old Hostel (Girls) blocks.
+# Seed source for the Bingham campus. Floor counts should be confirmed with campus administration.
 HOSTEL_SEED = [
     {"name": "New Hostel", "gender": "girls", "has_blocks": False, "floor_count": 4},
-    {"name": "Old Hostel", "gender": "girls", "has_blocks": True, "blocks": []},
+    {"name": "Old Hostel", "gender": "girls", "has_blocks": True, "blocks": ["Dorcas", "Abigail", "Esther", "Deborah", "Lois", "Hannah", "Ketura", "Naomi", "Rehab", "Gra", "Shera"]},
     {"name": "New Hostel", "gender": "boys", "has_blocks": False, "floor_count": 4},
     {"name": "Old Hostel", "gender": "boys", "has_blocks": True, "blocks": ["Abel", "Enoch", "Samson", "Barack", "Emmanuel", "Gideon", "Moses", "Daniel", "Noah"]},
 ]

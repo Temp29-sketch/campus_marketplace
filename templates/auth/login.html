@@ -9,9 +9,13 @@
 
     <label for="email">Email</label>
     <input id="email" type="email" name="email" value="{{ form.get('email', '') }}" autocomplete="email" required>
+    {% with field='email' %}{% include "_field_error.html" %}{% endwith %}
 
     <label for="password">Password</label>
-    <input id="password" type="password" name="password" autocomplete="current-password" required>
+    <div class="password-field"><input id="password" type="password" name="password" autocomplete="current-password" required><button class="password-toggle" type="button" data-password-toggle aria-controls="password" aria-label="Show password" title="Show password" aria-pressed="false"><svg class="eye-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg><svg class="eye-off-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 3 18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.2A10.8 10.8 0 0 1 12 5c6.5 0 10 7 10 7a14.8 14.8 0 0 1-3.2 4.1M6.2 6.2C3.5 8.1 2 12 2 12s3.5 7 10 7c1.2 0 2.3-.2 3.3-.6"/></svg></button></div>
+    {% with field='password' %}{% include "_field_error.html" %}{% endwith %}
+
+    <p class="muted"><a href="{{ url_for('auth.forgot_password') }}">Forgot password?</a></p>
 
     <button class="btn full" type="submit">Log in</button>
   </form>

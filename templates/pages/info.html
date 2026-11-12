@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} · {{ app_name }}{% endblock %}
+{% block content %}
+<article class="info-page">
+  <h1>{{ title }}</h1>
+  {% if page == 'how-it-works' %}<p>Browse listings from verified student vendors on your campus. Save favorites to your wishlist and add available items to your cart. Orders and checkout will be available soon.</p>
+  {% elif page == 'seller-guidelines' %}<p>Keep campus shopping safe and clear. Listings must not include weapons, drugs, counterfeit or stolen goods, exam leaks or academic dishonesty, adult content, or live animals.</p><ul><li>Use honest photos and prices.</li><li>Deliver what your listing describes.</li><li>Keep payments on the platform; do not ask buyers to pay off-platform.</li></ul>
+  {% elif page == 'terms' %}<!-- Draft, to be reviewed before launch --><p class="draft-note">Draft, to be reviewed before launch.</p><p>Use UniHub respectfully and follow the seller guidelines. Listings and accounts may be removed when they break campus marketplace rules.</p>
+  {% elif page == 'privacy' %}<!-- Draft, to be reviewed before launch --><p class="draft-note">Draft, to be reviewed before launch.</p><p>UniHub uses account and campus details to provide marketplace features. We do not display buyer addresses or private account details on public listings.</p>
+  {% else %}<p>Need a hand? Contact support at <a href="mailto:{{ support_email }}">{{ support_email }}</a>.</p>{% endif %}
+</article>
+{% endblock %}

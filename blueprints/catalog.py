@@ -4,8 +4,7 @@ What shoppers can see
 - Only AVAILABLE listings from vendors who are currently approved.
 - Logged-in users see their own university's listings. Anonymous visitors see
   the only active university's listings, or everything if several are active.
-- Contact buttons need a login by default (REQUIRE_LOGIN_FOR_CONTACT), so vendors'
-  phone numbers can't be scraped by bots. Set it to False to make them fully public.
+- Vendor phone numbers are never rendered in public catalog pages.
 
 The feed works as a plain GET form (no JavaScript needed). static/catalog.js
 upgrades it: it fetches just the results (`partial=1`) as you type or click.
@@ -16,8 +15,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import contains_eager, joinedload, selectinload
 
 from extensions import db, limiter
-from models import APP_APPROVED, ROLE_VENDOR, Category, Product, University, User, VendorApplication
-from services import contact
+from models import APP_APPROVED, ROLE_VENDOR, Banner, Category, Product, University, User, VendorApplication, WishlistItem, utcnow
 from services.search import clean_query, like_pattern, parse_terms
 
 catalog_bp = Blueprint("catalog", __name__)
@@ -30,24 +28,6 @@ SORTS = {
     "price_asc": (Product.price.asc(), Product.id.desc()),
     "price_desc": (Product.price.desc(), Product.id.desc()),
 }
-
-
-# --- template helpers ---------------------------------------------------------
-catalog_bp.add_app_template_global(contact.whatsapp_url, "whatsapp_url")
-catalog_bp.add_app_template_global(contact.tel_url, "tel_url")
-catalog_bp.add_app_template_global(contact.display_phone, "display_phone")
-
-
-@catalog_bp.app_template_global()
-def contact_state(product) -> str:
-    """'own' | 'soldout' | 'login' | 'ok': what the viewer may do about contacting the seller."""
-    if current_user.is_authenticated and current_user.id == product.vendor_id:
-        return "own"
-    if not product.is_available:
-        return "soldout"
-    if current_app.config["REQUIRE_LOGIN_FOR_CONTACT"] and not current_user.is_authenticated:
-        return "login"
-    return "ok"
 
 
 # --- queries --------------------------------------------------------------------
@@ -68,6 +48,7 @@ def _visible_products(university_id):
         .join(VendorApplication, VendorApplication.user_id == User.id)
         .filter(
             User.role == ROLE_VENDOR,
+            User.is_active_account.is_(True),
             VendorApplication.status == APP_APPROVED,
             Product.is_removed.is_(False),
         )
@@ -88,9 +69,9 @@ def feed():
     """Registered as the home page ('index') in app.py."""
     q = clean_query(request.args.get("q"))
     categories = Category.query.order_by(Category.name).all()
+    category_by_slug = {c.slug: c for c in categories}
     category = next((c for c in categories if c.slug == request.args.get("category", "")), None)
-    ptype = request.args.get("type", "")
-    ptype = ptype if ptype in PRODUCT_TYPES else ""
+    ptype = ""
     sort = request.args.get("sort", "new")
     sort = sort if sort in SORTS else "new"
     page = max(request.args.get("page", 1, type=int), 1)
@@ -98,8 +79,6 @@ def feed():
     query = _visible_products(_university_scope()).filter(Product.is_available.is_(True))
     if category:
         query = query.filter(Product.category_id == category.id)
-    if ptype:
-        query = query.filter(Product.is_service == (ptype == "service"))
     for term in parse_terms(q):
         pattern = like_pattern(term)
         query = query.filter(
@@ -110,6 +89,21 @@ def feed():
             )
         )
     pagination = query.order_by(*SORTS[sort]).paginate(page=page, per_page=PER_PAGE, error_out=False)
+    now = utcnow()
+    def recent(product):
+        created = product.created_at
+        if created and created.tzinfo is None:
+            created = created.replace(tzinfo=now.tzinfo)
+        return bool(created and (now - created).total_seconds() <= 48 * 60 * 60)
+    new_product_ids = {p.id for p in pagination.items if recent(p)}
+    saved_product_ids = set()
+    if current_user.is_authenticated and pagination.items:
+        saved_product_ids = set(db.session.scalars(
+            db.select(WishlistItem.product_id).where(
+                WishlistItem.user_id == current_user.id,
+                WishlistItem.product_id.in_([p.id for p in pagination.items]),
+            )
+        ).all())
 
     args = {"q": q, "category": category.slug if category else "", "type": ptype,
             "sort": sort if sort != "new" else ""}
@@ -119,9 +113,16 @@ def feed():
         params = {k: v for k, v in {**args, **overrides}.items() if v}
         return url_for("index", **params)
 
+    banner_query = Banner.query.filter(Banner.is_active.is_(True), or_(Banner.starts_at.is_(None), Banner.starts_at <= now), or_(Banner.ends_at.is_(None), Banner.ends_at >= now))
+    campus = _university_scope()
+    if campus:
+        banner_query = banner_query.filter(or_(Banner.university_id == campus, Banner.university_id.is_(None)))
+    banners = banner_query.order_by(Banner.position, Banner.id).all()
     context = dict(
         products=pagination.items, pagination=pagination, link=link, q=q,
-        categories=categories, active_category=args["category"], ptype=ptype, sort=sort,
+        categories=categories, category_by_slug=category_by_slug,
+        active_category=args["category"], ptype=ptype, sort=sort,
+        banners=banners, new_product_ids=new_product_ids, saved_product_ids=saved_product_ids,
     )
     template = "catalog/_results.html" if request.args.get("partial") else "catalog/index.html"
     return render_template(template, **context)
@@ -130,7 +131,8 @@ def feed():
 @catalog_bp.route("/item/<int:product_id>")
 def item(product_id):
     product = _visible_products(_university_scope()).filter(Product.id == product_id).first_or_404()
-    return render_template("catalog/detail.html", product=product)
+    is_saved = current_user.is_authenticated and WishlistItem.query.filter_by(user_id=current_user.id, product_id=product_id).first() is not None
+    return render_template("catalog/detail.html", product=product, is_saved=is_saved)
 
 
 @catalog_bp.route("/store/<int:vendor_id>")
@@ -141,7 +143,7 @@ def store(vendor_id):
         user = db.session.get(User, vendor_id)
         application = user.vendor_application if user else None
         scope = _university_scope()
-        if not (user and user.is_vendor and application and application.status == APP_APPROVED) or (
+        if not (user and user.is_vendor and user.is_active_account and application and application.status == APP_APPROVED) or (
             scope and user.university_id != scope
         ):
             abort(404)
@@ -155,4 +157,9 @@ def store(vendor_id):
         .limit(STORE_LIMIT)
         .all()
     )
-    return render_template("catalog/store.html", vendor=user, products=products)
+    saved_product_ids = set()
+    if current_user.is_authenticated and products:
+        saved_product_ids = set(db.session.scalars(db.select(WishlistItem.product_id).where(
+            WishlistItem.user_id == current_user.id, WishlistItem.product_id.in_([p.id for p in products])
+        )).all())
+    return render_template("catalog/store.html", vendor=user, products=products, saved_product_ids=saved_product_ids, new_product_ids=set())

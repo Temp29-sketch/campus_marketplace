@@ -5,7 +5,7 @@ from flask import request
 
 
 def _csp(app) -> str:
-    img_sources = ["'self'", "data:"]
+    img_sources = ["'self'", "data:", "blob:"]
     if app.config["STORAGE_BACKEND"] == "s3":
         parsed = urlparse(app.config["S3_PUBLIC_BASE_URL"])
         if parsed.scheme and parsed.netloc:

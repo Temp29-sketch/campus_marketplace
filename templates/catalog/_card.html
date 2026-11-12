@@ -1,12 +1,13 @@
-<article class="product-card" data-product-id="{{ p.id }}">
-  <a href="{{ url_for('catalog.item', product_id=p.id) }}">
+<article class="product-card{% if not p.is_available %} soldout{% endif %}" data-product-id="{{ p.id }}">
+  <a id="product-{{ p.id }}" class="product-card-link" href="{{ url_for('catalog.item', product_id=p.id) }}">
     {% if p.cover_image %}
-      <img class="thumb" loading="lazy" src="{{ thumb_url(p.cover_image.storage_key) }}" alt="{{ p.title }}">
+      <div class="image-frame product-image shimmer"><img class="thumb" loading="lazy" src="{{ thumb_url(p.cover_image.storage_key) }}" data-placeholder="true" alt="{{ p.title }}"></div>
     {% else %}
-      <div class="thumb placeholder">{{ 'Service' if p.is_service else 'No photo' }}</div>
+      <div class="thumb placeholder image-fallback" role="img" aria-label="No listing photo"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M23 27V18a9 9 0 0 1 18 0v9" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><path d="M11 23h42l-3 31a4.5 4.5 0 0 1-4.5 4H18.5A4.5 4.5 0 0 1 14 54z" fill="currentColor"/></svg></div>
     {% endif %}
   </a>
   <div class="body">
+    {% if p.id in new_product_ids|default([]) %}<span class="badge new-badge">New</span>{% endif %}
     <h2><a href="{{ url_for('catalog.item', product_id=p.id) }}">{{ p.title }}</a></h2>
     <p class="price">{{ p.price|naira }}</p>
     {% if p.stock is not none and 1 <= p.stock <= 5 %}<p class="stock-note">Only {{ p.stock }} left</p>{% endif %}
@@ -17,18 +18,16 @@
     <p class="vendor">by <a href="{{ url_for('catalog.store', vendor_id=p.vendor_id) }}">{{ p.business_name }}</a>
       <span class="verified" title="Verified student vendor">✓</span></p>
 
-    {% set state = contact_state(p) %}
-    {% if state == 'ok' %}
-      {% set wa = whatsapp_url(p.contact_phone, p.business_name, p.title, p.price|naira) %}
-      {% set tel = tel_url(p.contact_phone) %}
-      <div class="actions">
-        {% if wa %}<a class="btn small-btn" href="{{ wa }}" target="_blank" rel="noopener">WhatsApp</a>{% endif %}
-        {% if tel %}<a class="btn small-btn alt" href="{{ tel }}">Call</a>{% endif %}
-      </div>
-    {% elif state == 'login' %}
-      <a class="link" href="{{ url_for('auth.login', next=url_for('catalog.item', product_id=p.id)) }}">Log in to contact seller</a>
-    {% elif state == 'own' %}
-      <span class="muted small">Your listing</span>
-    {% endif %}
+    <div class="card-actions">
+      {% if current_user.is_authenticated %}
+        <form method="post" action="{{ url_for('pages.wishlist_toggle', product_id=p.id) }}" class="wishlist-form" data-wishlist-form>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="heart-button{% if p.id in saved_product_ids|default([]) %} saved{% endif %}" type="submit" aria-label="{{ 'Remove from wishlist' if p.id in saved_product_ids|default([]) else 'Save to wishlist' }}" aria-pressed="{{ 'true' if p.id in saved_product_ids|default([]) else 'false' }}">♥</button>
+        </form>
+      {% else %}<a class="heart-button" href="{{ url_for('auth.login', next=request.full_path ~ '#product-' ~ p.id) }}" aria-label="Log in to save to wishlist">♡</a>{% endif %}
+      {% if p.is_available and (not current_user.is_authenticated or current_user.id != p.vendor_id) %}
+        <form method="post" action="{{ url_for('pages.cart_add', product_id=p.id) }}#product-{{ p.id }}" data-cart-form><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small-btn add-cart" type="submit" data-add-to-cart>Add to cart</button></form>
+      {% elif not p.is_available %}<span class="muted small">Sold out</span>{% else %}<span class="muted small">Your listing</span>{% endif %}
+    </div>
   </div>
 </article>

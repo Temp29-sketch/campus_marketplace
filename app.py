@@ -1,10 +1,11 @@
 import logging
 import os
 import re
+from datetime import datetime
 from decimal import Decimal
 
 import click
-from flask import Flask, flash, jsonify, redirect, render_template, request, send_from_directory, url_for
+from flask import Flask, abort, flash, jsonify, redirect, render_template, request, send_from_directory, url_for
 from flask_wtf.csrf import CSRFError
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -39,7 +40,25 @@ def create_app(config_class=None):
 
     app = Flask(__name__)
     app.config.from_object(config_class)
-    app.context_processor(lambda: {"app_name": app.config["APP_NAME"]})
+    if app.config["STORAGE_BACKEND"] == "local" and not os.path.isabs(app.config["UPLOAD_FOLDER"]):
+        app.config["UPLOAD_FOLDER"] = os.path.abspath(os.path.join(app.root_path, app.config["UPLOAD_FOLDER"]))
+    def shared_template_context():
+        from flask_login import current_user
+        from models import CartItem, AdRequest
+        count = 0
+        ad_request_count = 0
+        if current_user.is_authenticated:
+            try:
+                count = db.session.query(db.func.coalesce(db.func.sum(CartItem.quantity), 0)).filter_by(user_id=current_user.id).scalar() or 0
+            except Exception:
+                db.session.rollback()
+            if getattr(current_user, "is_admin", False):
+                try:
+                    ad_request_count = AdRequest.query.filter_by(university_id=current_user.university_id, status="new").count()
+                except Exception:
+                    db.session.rollback()
+        return {"app_name": app.config["APP_NAME"], "cart_count": count, "ad_request_count": ad_request_count, "now_year": datetime.now().year, "field_errors": {}}
+    app.context_processor(shared_template_context)
     production = app.config["ENV_NAME"] == "production"
     if production:
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -67,20 +86,33 @@ def create_app(config_class=None):
     from blueprints.auth import auth_bp
     from blueprints.catalog import catalog_bp, feed
     from blueprints.listings import listings_bp
+    from blueprints.notifications import notifications_bp
+    from blueprints.orders import orders_bp, vendor_orders_bp
+    from blueprints.pages import pages_bp
     from blueprints.reports import reports_bp
     from blueprints.settings import settings_bp
     from blueprints.vendor import vendor_bp
     from services.storage import avatar_thumb_url, avatar_url, image_url, thumb_url
     from services.banks import mask_account
+    from decimal import Decimal as _Decimal
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(vendor_bp)
     app.register_blueprint(listings_bp)
+    app.register_blueprint(notifications_bp)
+    app.register_blueprint(orders_bp)
+    app.register_blueprint(vendor_orders_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(catalog_bp)
     app.register_blueprint(reports_bp)
     app.register_blueprint(settings_bp)
+    app.register_blueprint(pages_bp)
     app.add_url_rule("/", endpoint="index", view_func=feed)  # the catalog is the home page
+
+    @login_manager.unauthorized_handler
+    def login_required_redirect():
+        flash("Your session expired. Please log in again to continue.", "error")
+        return redirect(url_for("auth.login", next=request.url))
 
     @app.get("/api/hostels")
     @limiter.limit("60 per minute")
@@ -93,15 +125,22 @@ def create_app(config_class=None):
     app.add_template_global(image_url, "image_url")
     app.add_template_global(thumb_url, "thumb_url")
     app.add_template_filter(naira, "naira")
+    app.add_template_filter(lambda value: naira(_Decimal(int(value or 0)) / 100), "naira_kobo")
     app.add_template_global(mask_account, "mask_account")
 
     @app.route("/media/<path:filename>")
     def media(filename):
         # Only used with STORAGE_BACKEND=local. Keys are random and never reused,
         # so browsers can cache them for a year.
-        return send_from_directory(
+        if not re.fullmatch(r"[a-f0-9]{32}(?:_t)?\.webp", filename):
+            abort(404)
+        if app.config["STORAGE_BACKEND"] != "local":
+            abort(404)
+        response = send_from_directory(
             app.config["UPLOAD_FOLDER"], filename, mimetype="image/webp", max_age=31536000
         )
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
 
     @app.route("/healthz")
     def healthz():
@@ -131,8 +170,8 @@ def create_app(config_class=None):
 
     @app.errorhandler(CSRFError)
     def csrf_failed(_error):
-        flash("Your session expired. Please try that again.", "error")
-        return redirect(request.referrer or url_for("index"))
+        flash("Your session expired. Please log in again to continue.", "error")
+        return redirect(url_for("auth.login", next=request.referrer or url_for("index")))
 
     @app.errorhandler(EmailError)
     def email_failed(error):
@@ -165,7 +204,7 @@ def seed_defaults():
 
 
 def register_cli(app):
-    from models import ROLE_ADMIN, University, User
+    from models import ROLE_ADMIN, ROLE_VENDOR, APP_APPROVED, University, User
 
     @app.cli.command("init-db")
     def init_db():
@@ -205,6 +244,29 @@ def register_cli(app):
         db.session.add(user)
         db.session.commit()
         click.echo("Admin created.")
+
+    @app.cli.command("create-missing-payout-accounts")
+    def create_missing_payout_accounts():
+        """Best-effort Paystack setup for approved vendors with mock bank details."""
+        from blueprints.admin import _ensure_payout_account
+        from models import VendorApplication
+        if not app.config.get("PAYSTACK_VERIFY_BANK") or not app.config.get("PAYSTACK_SECRET_KEY"):
+            raise click.ClickException("Set PAYSTACK_VERIFY_BANK=true and configure PAYSTACK_SECRET_KEY first.")
+        rows = VendorApplication.query.join(User).filter(
+            User.role == ROLE_VENDOR, VendorApplication.status == APP_APPROVED,
+            VendorApplication.paystack_subaccount_code.is_(None)).all()
+        success = 0
+        for row in rows:
+            try:
+                _ensure_payout_account(row)
+                if row.paystack_subaccount_code:
+                    db.session.commit(); success += 1
+                else:
+                    db.session.rollback()
+            except Exception as exc:
+                db.session.rollback()
+                click.echo(f"Could not create payout account for vendor {row.user_id}: {exc}")
+        click.echo(f"Created {success} payout account(s); {len(rows) - success} still need attention.")
 
 
 app = create_app()

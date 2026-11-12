@@ -14,6 +14,7 @@
 
       <label for="name">Full name</label>
       <input id="name" name="name" value="{{ form.get('name', '') }}" autocomplete="name" required>
+      {% with field='name' %}{% include "_field_error.html" %}{% endwith %}
 
       <label for="university_id">University</label>
       <select id="university_id" name="university_id" required>
@@ -22,16 +23,21 @@
           <option value="{{ u.id }}" {% if form.get('university_id') == u.id|string %}selected{% endif %}>{{ u.name }} (@{{ u.email_domain }})</option>
         {% endfor %}
       </select>
+      {% with field='university_id' %}{% include "_field_error.html" %}{% endwith %}
 
       <label for="school_email">School email</label>
       <input id="school_email" type="email" name="school_email" value="{{ form.get('school_email', '') }}" autocomplete="email" required>
+      {% with field='school_email' %}{% include "_field_error.html" %}{% endwith %}
 
       <label for="matric_number">Matriculation number</label>
       <input id="matric_number" name="matric_number" value="{{ form.get('matric_number', '') }}" required>
+      {% with field='matric_number' %}{% include "_field_error.html" %}{% endwith %}
 
       {% set hostels = hostels %}{% include "_hostel_fields.html" %}
-      <label for="password">Password</label><input id="password" type="password" name="password" minlength="8" autocomplete="new-password" required>
-      <label for="confirm_password">Confirm password</label><input id="confirm_password" type="password" name="confirm_password" minlength="8" autocomplete="new-password" required>
+      <label for="password">Password</label><div class="password-field"><input id="password" type="password" name="password" minlength="8" autocomplete="new-password" required><button class="password-toggle" type="button" data-password-toggle aria-controls="password" aria-label="Show password" title="Show password" aria-pressed="false"><svg class="eye-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg><svg class="eye-off-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 3 18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.2A10.8 10.8 0 0 1 12 5c6.5 0 10 7 10 7a14.8 14.8 0 0 1-3.2 4.1M6.2 6.2C3.5 8.1 2 12 2 12s3.5 7 10 7c1.2 0 2.3-.2 3.3-.6"/></svg></button></div>
+      {% with field='password' %}{% include "_field_error.html" %}{% endwith %}
+      <label for="confirm_password">Confirm password</label><div class="password-field"><input id="confirm_password" type="password" name="confirm_password" minlength="8" autocomplete="new-password" required><button class="password-toggle" type="button" data-password-toggle aria-controls="confirm_password" aria-label="Show password" title="Show password" aria-pressed="false"><svg class="eye-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg><svg class="eye-off-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 3 18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.2A10.8 10.8 0 0 1 12 5c6.5 0 10 7 10 7a14.8 14.8 0 0 1-3.2 4.1M6.2 6.2C3.5 8.1 2 12 2 12s3.5 7 10 7c1.2 0 2.3-.2 3.3-.6"/></svg></button></div>
+      {% with field='confirm_password' %}{% include "_field_error.html" %}{% endwith %}
       <button class="btn full" type="submit">Send confirmation link</button>
     </form>
     <p class="muted">Just want to buy? <a href="{{ url_for('auth.register') }}">Sign up as a buyer</a> with any email.</p>

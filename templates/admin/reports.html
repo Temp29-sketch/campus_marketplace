@@ -42,19 +42,19 @@
         <form method="post" action="{{ url_for('admin.dismiss_report', report_id=r.id) }}" class="mod-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input name="note" maxlength="255" placeholder="Note (optional)">
-          <button class="btn alt" type="submit">Dismiss</button>
+            <button class="btn" type="submit">Dismiss</button>
         </form>
         <form method="post" action="{{ url_for('admin.remove_listing', report_id=r.id) }}" class="mod-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input name="note" maxlength="255" placeholder="Reason shown to vendor (optional)">
-          <button class="btn danger" type="submit">Remove listing</button>
+            <button class="btn" type="submit">Remove listing</button>
         </form>
         {% if p.vendor.role == 'vendor' %}
           <form method="post" action="{{ url_for('admin.revoke_vendor', report_id=r.id) }}" class="mod-form"
                 data-confirm="Revoke vendor access? All of this vendor's listings will disappear.">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input name="note" maxlength="255" placeholder="Reason (required, shown to vendor)" required>
-            <button class="btn danger" type="submit">Revoke vendor</button>
+            <button class="btn" type="submit">Revoke vendor</button>
           </form>
         {% endif %}
       </div>
@@ -65,7 +65,7 @@
       {% if p.is_removed %}
         <form method="post" action="{{ url_for('admin.restore_listing', product_id=p.id) }}" class="inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button class="btn small-btn alt" type="submit">Restore listing</button>
+          <button class="btn" type="submit">Restore listing</button>
         </form>
       {% endif %}
     {% endif %}

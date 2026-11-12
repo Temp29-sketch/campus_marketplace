@@ -5,6 +5,7 @@
   <h1>My listings</h1>
   <a class="btn" href="{{ url_for('listings.new_product') }}">Add listing</a>
 </div>
+{% if not payout_ready %}<p class="muted">Your payout account is not set up yet. Real Paystack checkout requires payout setup; demo mode does not.</p>{% endif %}
 
 {% if not products %}
   <p class="muted">You haven't listed anything yet. Add your first product or service.</p>

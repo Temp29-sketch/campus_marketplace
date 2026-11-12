@@ -3,13 +3,14 @@
 </p>
 
 {% if products %}
-  <div class="grid">
+  <div class="grid" id="listing-cards">
     {% for p in products %}{% include "catalog/_card.html" %}{% endfor %}
   </div>
 {% else %}
   <div class="empty">
-    <h2>No listings match</h2>
-    <p class="muted">Try a different word, or <a href="{{ url_for('index') }}">clear all filters</a>.</p>
+    <span class="empty-icon" aria-hidden="true">⌕</span>
+    <h2>{% if active_category %}No listings in {{ category_by_slug.get(active_category).name if category_by_slug.get(active_category) else 'this category' }} yet{% elif q %}No listings match “{{ q }}”{% else %}No listings yet{% endif %}</h2>
+    {% if q %}<p class="muted">Try another search or clear it to see all listings.</p><a class="btn" href="{{ url_for('index') }}">Clear search</a>{% elif active_category %}<p class="muted">Try another category or browse everything.</p><a class="btn" href="{{ url_for('index') }}">Show all listings</a>{% else %}<p class="muted">Check back soon for new campus listings.</p>{% endif %}
   </div>
 {% endif %}
 

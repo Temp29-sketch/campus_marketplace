@@ -101,6 +101,7 @@ class User(UserMixin, db.Model):
 
     # Login/contact email: any provider (gmail, yahoo, school...).
     email = db.Column(db.String(255), nullable=False, unique=True, index=True)
+    phone_number = db.Column(db.String(20))
 
     # Only set once the student proves they own a school email (needed to sell).
     school_email = db.Column(db.String(255), unique=True, index=True)
@@ -114,6 +115,11 @@ class User(UserMixin, db.Model):
     floor = db.Column(db.Integer)
     room_number = db.Column(db.String(10))
     photo_key = db.Column(db.String(255))
+    is_active_account = db.Column(db.Boolean, nullable=False, default=True, server_default=db.true())
+    session_version = db.Column(db.Integer, nullable=False, default=0, server_default="0")
+    pending_email = db.Column(db.String(255))
+    email_change_token_hash = db.Column(db.String(64))
+    email_change_expires_at = db.Column(db.DateTime(timezone=True))
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
 
     university = db.relationship("University", back_populates="users")
@@ -177,7 +183,11 @@ class User(UserMixin, db.Model):
 
 @login_manager.user_loader
 def load_user(user_id):
-    return db.session.get(User, int(user_id))
+    from flask import session
+    user = db.session.get(User, int(user_id))
+    if user and (not user.is_active_account or session.get("_auth_version") != user.session_version):
+        return None
+    return user
 
 
 
@@ -226,6 +236,17 @@ class PendingSignup(db.Model):
     room_number = db.Column(db.String(10), nullable=False)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
     expires_at = db.Column(db.DateTime(timezone=True), nullable=False)
+
+
+class PasswordResetToken(db.Model):
+    __tablename__ = "password_reset_tokens"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    token_hash = db.Column(db.String(64), nullable=False, unique=True, index=True)
+    expires_at = db.Column(db.DateTime(timezone=True), nullable=False)
+    used_at = db.Column(db.DateTime(timezone=True))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    user = db.relationship("User")
 
 
 class VendorApplication(db.Model):
@@ -309,7 +330,7 @@ class Product(db.Model):
     )
     reports = db.relationship("Report", back_populates="product", cascade="all, delete-orphan")
 
-    def decrement_stock(self, quantity=1):
+    def decrement_stock(self, quantity=1, commit=True):
         if not isinstance(quantity, int) or isinstance(quantity, bool) or quantity <= 0 or self.stock is None:
             return False
         result = db.session.execute(
@@ -322,7 +343,8 @@ class Product(db.Model):
             update(Product).where(Product.id == self.id, Product.stock == 0).values(is_available=False)
         )
         db.session.refresh(self)
-        db.session.commit()
+        if commit:
+            db.session.commit()
         return True
 
     def remove(self, reason: str | None = None) -> None:
@@ -367,6 +389,94 @@ class ProductImage(db.Model):
     product = db.relationship("Product", back_populates="images")
 
 
+class WishlistItem(db.Model):
+    __tablename__ = "wishlist_items"
+    __table_args__ = (db.UniqueConstraint("user_id", "product_id", name="uq_wishlist_user_product"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    product_id = db.Column(db.Integer, db.ForeignKey("products.id"), nullable=False, index=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+
+    user = db.relationship("User", backref=db.backref("wishlist_items", cascade="all, delete-orphan"))
+    product = db.relationship("Product", backref=db.backref("wishlist_items", cascade="all, delete-orphan"))
+
+
+class CartItem(db.Model):
+    __tablename__ = "cart_items"
+    __table_args__ = (db.UniqueConstraint("user_id", "product_id", name="uq_cart_user_product"),)
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    product_id = db.Column(db.Integer, db.ForeignKey("products.id"), nullable=False, index=True)
+    quantity = db.Column(db.Integer, nullable=False, default=1)
+    unit_price_kobo = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    user = db.relationship("User", backref=db.backref("cart_items", cascade="all, delete-orphan"))
+    product = db.relationship("Product", backref=db.backref("cart_items", cascade="all, delete-orphan"))
+
+
+ORDER_PENDING = "pending"
+ORDER_PAID = "paid"
+ORDER_FAILED = "failed"
+ORDER_CANCELLED = "cancelled"
+ORDER_STATUSES = (ORDER_PENDING, ORDER_PAID, ORDER_FAILED, ORDER_CANCELLED)
+FULFILMENT_STATUSES = ("new", "preparing", "ready", "delivered", "cancelled")
+
+
+class Order(db.Model):
+    __tablename__ = "orders"
+    __table_args__ = (db.CheckConstraint("status IN ('pending','paid','failed','cancelled')", name="ck_order_status"),)
+    id = db.Column(db.Integer, primary_key=True)
+    buyer_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    university_id = db.Column(db.Integer, db.ForeignKey("universities.id"), nullable=False, index=True)
+    reference = db.Column(db.String(50), nullable=False, unique=True, index=True)
+    total_kobo = db.Column(db.Integer, nullable=False)
+    commission_kobo = db.Column(db.Integer, nullable=False)
+    status = db.Column(db.String(12), nullable=False, default=ORDER_PENDING, index=True)
+    paystack_transaction_id = db.Column(db.String(80))
+    paid_at = db.Column(db.DateTime(timezone=True))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow, index=True)
+    hostel_name = db.Column(db.String(80), nullable=False)
+    hostel_block_name = db.Column(db.String(40))
+    floor = db.Column(db.Integer)
+    room_number = db.Column(db.String(10), nullable=False)
+    note = db.Column(db.String(300))
+    delivery_phone = db.Column(db.String(20))
+    buyer = db.relationship("User", foreign_keys=[buyer_id])
+    university = db.relationship("University")
+    items = db.relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
+
+
+class OrderItem(db.Model):
+    __tablename__ = "order_items"
+    __table_args__ = (db.CheckConstraint("fulfilment_status IN ('new','preparing','ready','delivered','cancelled')", name="ck_orderitem_fulfilment_status"),)
+    id = db.Column(db.Integer, primary_key=True)
+    order_id = db.Column(db.Integer, db.ForeignKey("orders.id"), nullable=False, index=True)
+    product_id = db.Column(db.Integer, db.ForeignKey("products.id"), nullable=True, index=True)
+    vendor_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    title_snapshot = db.Column(db.String(150), nullable=False)
+    unit_price_kobo = db.Column(db.Integer, nullable=False)
+    quantity = db.Column(db.Integer, nullable=False)
+    line_total_kobo = db.Column(db.Integer, nullable=False)
+    commission_kobo = db.Column(db.Integer, nullable=False)
+    vendor_share_kobo = db.Column(db.Integer, nullable=False)
+    fulfilment_status = db.Column(db.String(12), nullable=False, default="new")
+    delivered_at = db.Column(db.DateTime(timezone=True))
+    buyer_confirmed_at = db.Column(db.DateTime(timezone=True))
+    order = db.relationship("Order", back_populates="items")
+    product = db.relationship("Product")
+    vendor = db.relationship("User")
+
+
+class PaystackEvent(db.Model):
+    __tablename__ = "paystack_events"
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.String(100), unique=True, index=True)
+    reference = db.Column(db.String(50), unique=True, index=True)
+    event_type = db.Column(db.String(80), nullable=False)
+    processed_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+
+
 class Report(db.Model):
     """A student flagging a listing. Admins of the vendor's campus review it."""
 
@@ -401,3 +511,69 @@ class Report(db.Model):
         self.resolved_by = admin
         self.resolved_at = utcnow()
         self.resolution_note = note
+
+
+class Notification(db.Model):
+    __tablename__ = "notifications"
+    __table_args__ = (db.Index("ix_notification_user_read_created", "user_id", "is_read", "created_at"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    kind = db.Column(db.String(40), nullable=False)
+    title = db.Column(db.String(160), nullable=False)
+    body = db.Column(db.String(500), nullable=False, default="")
+    link_url = db.Column(db.String(500), nullable=False, default="/")
+    is_read = db.Column(db.Boolean, nullable=False, default=False)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    user = db.relationship("User", backref=db.backref("notifications", cascade="all, delete-orphan"))
+
+
+class AdminAuditLog(db.Model):
+    __tablename__ = "admin_audit_logs"
+    id = db.Column(db.Integer, primary_key=True)
+    admin_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    target_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    action = db.Column(db.String(80), nullable=False)
+    details = db.Column(db.Text, nullable=False, default="")
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow, index=True)
+    admin = db.relationship("User", foreign_keys=[admin_id])
+    target_user = db.relationship("User", foreign_keys=[target_user_id])
+
+
+class Banner(db.Model):
+    __tablename__ = "banners"
+    id = db.Column(db.Integer, primary_key=True)
+    university_id = db.Column(db.Integer, db.ForeignKey("universities.id"), nullable=True, index=True)
+    title = db.Column(db.String(150), nullable=False)
+    subtitle = db.Column(db.String(300), nullable=False, default="")
+    image_key = db.Column(db.String(255), nullable=False)
+    fit_mode = db.Column(db.String(10), nullable=False, default="fill", server_default="fill")
+    focus = db.Column(db.String(10), nullable=False, default="center", server_default="center")
+    link_url = db.Column(db.String(500))
+    button_text = db.Column(db.String(40))
+    is_active = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    position = db.Column(db.Integer, nullable=False, default=0)
+    starts_at = db.Column(db.DateTime(timezone=True))
+    ends_at = db.Column(db.DateTime(timezone=True))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    university = db.relationship("University")
+
+
+class AdRequest(db.Model):
+    __tablename__ = "ad_requests"
+    __table_args__ = (db.CheckConstraint("status IN ('new','contacted','accepted','rejected')", name="ck_ad_request_status"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    university_id = db.Column(db.Integer, db.ForeignKey("universities.id"), nullable=False, index=True)
+    business_name = db.Column(db.String(150), nullable=False)
+    contact_name = db.Column(db.String(120), nullable=False)
+    phone = db.Column(db.String(20), nullable=False)
+    email = db.Column(db.String(255), nullable=False)
+    message = db.Column(db.String(1000), nullable=False)
+    image_key = db.Column(db.String(255))
+    status = db.Column(db.String(20), nullable=False, default="new", server_default="new", index=True)
+    admin_note = db.Column(db.Text, nullable=False, default="")
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow, index=True)
+    user = db.relationship("User", backref=db.backref("ad_requests", lazy="dynamic"))
+    university = db.relationship("University")

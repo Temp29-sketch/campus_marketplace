@@ -1,0 +1,5 @@
+{% extends "base.html" %}
+{% block title %}Ad requests · {{ app_name }}{% endblock %}
+{% block content %}<div class="page-heading"><h1>Ad requests</h1><p>{{ new_count }} new</p></div>
+<nav class="filter-row" aria-label="Filter requests">{% for value in ['all','new','contacted','accepted','rejected'] %}<a class="{{ 'active' if status == value else '' }}" href="{{ url_for('admin.ad_requests', status=value) }}">{{ value|title }}</a>{% endfor %}</nav>
+{% for row in requests %}<article class="app-card"><div><h2><a href="{{ url_for('admin.ad_request_detail', request_id=row.id) }}">{{ row.business_name }}</a> {% if row.status == 'new' %}<span class="badge">New</span>{% endif %}</h2><p>{{ row.contact_name }} · {{ row.email }} · {{ row.phone }}</p><p>{{ row.created_at.strftime('%d %b %Y') }} · {{ row.status|title }}</p></div></article>{% else %}<p>No advertising requests in this view.</p>{% endfor %}{% endblock %}

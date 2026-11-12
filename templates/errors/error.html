@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ code }} · {{ app_name }}{% endblock %}
+{% block back_button %}<button class="back-button" type="button" aria-label="Go back" data-back-button data-fallback="{{ url_for('index') }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6M9 12h12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Back</span></button>{% endblock %}
 {% block content %}
 <div class="card">
   <h1>{{ heading }}</h1>

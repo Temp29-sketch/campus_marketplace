@@ -10,6 +10,11 @@ from extensions import db
 from models import (
     Category, Hostel, Product, ProductImage, University, User, VendorApplication,
 )
+from services import paystack
+
+# All approval-time Paystack calls are faked: tests never contact Paystack.
+paystack.resolve_account = lambda account_number, bank_code: {"account_name": "Ada" if account_number == "1234567890" else "Bob"}
+paystack.create_subaccount = lambda application: {"subaccount_code": "ACCT_TEST"}
 
 app = create_app(TestConfig)
 client = app.test_client()
@@ -38,7 +43,7 @@ with app.app_context():
 
 # 1. A student registers as a buyer with a gmail address.
 r = client.post("/register", data=dict(
-    name="Ada", email="ada@gmail.com", password="password123", university_id=bingham_id, hostel_id=boys_hostel_id, floor="1", room_number="A12"))
+    name="Ada", email="ada@gmail.com", password="password123", confirm_password="password123", university_id=bingham_id, hostel_id=boys_hostel_id, floor="1", room_number="A12"))
 assert r.status_code == 302
 with app.app_context():
     ada = User.query.filter_by(email="ada@gmail.com").one()
@@ -132,6 +137,7 @@ assert r.status_code == 200
 with app.app_context():
     assert VendorApplication.query.filter_by(user_id=bob_id).count() == 0
 bob_form = {**good, "business_name": "Bob Tech", "bio": "Phone repairs", "phone_number": "09012345678"}
+bob_form["account_number"] = "9876543210"  # fake Paystack lookup returns Bob for this account
 bob_client.post("/become-vendor/apply", data=bob_form)  # bio too short -> rejected by validation
 with app.app_context():
     assert VendorApplication.query.filter_by(user_id=bob_id).count() == 0

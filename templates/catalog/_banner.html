@@ -1,0 +1,23 @@
+{% if banners %}
+  <section class="feed-banner active-banner{% if banners|length > 1 %} banner-carousel{% endif %}" role="region" aria-roledescription="carousel" aria-label="Promotions" data-banner-carousel tabindex="0">
+    {% for banner in banners %}
+      {% set external = banner.link_url and (banner.link_url.startswith('http://') or banner.link_url.startswith('https://')) %}
+      {% if banner.link_url %}<a class="banner-slide{% if loop.first %} active{% endif %}" href="{{ banner.link_url }}" {% if external %}rel="noopener noreferrer"{% endif %} role="group" aria-roledescription="slide" aria-label="{{ loop.index }} of {{ banners|length }}" aria-hidden="{{ 'false' if loop.first else 'true' }}">{% else %}<article class="banner-slide{% if loop.first %} active{% endif %}" role="group" aria-roledescription="slide" aria-label="{{ loop.index }} of {{ banners|length }}" aria-hidden="{{ 'false' if loop.first else 'true' }}">{% endif %}
+        <div class="banner-image shimmer{% if banner.fit_mode == 'fit' %} banner-fit{% endif %}">
+          {% if banner.fit_mode == 'fit' %}<img class="banner-backdrop" src="{{ image_url(banner.image_key) }}" aria-hidden="true" alt="" loading="{% if loop.first %}eager{% else %}lazy{% endif %}">{% endif %}
+          <img class="banner-focus-{{ banner.focus if banner.focus in ('top', 'center', 'bottom') else 'center' }}" src="{{ image_url(banner.image_key) }}" alt="" loading="{% if loop.first %}eager{% else %}lazy{% endif %}" {% if loop.first %}fetchpriority="high"{% endif %} data-placeholder="true">
+        </div>
+        {% if banner.title or banner.subtitle or external or (banner.link_url and banner.button_text) %}<div class="banner-copy">
+          {% if banner.title %}<h2>{{ banner.title }}</h2>{% endif %}{% if banner.subtitle %}<p>{{ banner.subtitle }}</p>{% endif %}
+          {% if external %}<span class="banner-sponsored">Ad</span>{% endif %}
+          {% if banner.link_url and banner.button_text %}<span class="btn banner-cta">{{ banner.button_text }}</span>{% endif %}
+        </div>{% endif %}
+      {% if banner.link_url %}</a>{% else %}</article>{% endif %}
+    {% endfor %}
+    {% if banners|length > 1 %}
+      <div class="banner-controls" aria-label="Slide controls"><button type="button" data-banner-prev aria-label="Previous banner">‹</button><div class="banner-dots" role="group" aria-label="Choose a banner">{% for banner in banners %}<button type="button" data-banner-dot="{{ loop.index0 }}" aria-label="Go to banner {{ loop.index }}" {% if loop.first %}aria-current="true"{% endif %}></button>{% endfor %}</div><button type="button" data-banner-next aria-label="Next banner">›</button></div>
+    {% endif %}
+  </section>
+{% else %}
+  <section class="feed-banner welcome-banner"><div class="welcome-copy"><p class="eyebrow">Campus marketplace</p><h1>Welcome to UniHub</h1><p>Buy and sell on campus, no more group-chat spam</p></div><a class="btn" href="#listing-cards">Browse</a></section>
+{% endif %}

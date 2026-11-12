@@ -15,7 +15,7 @@ import uuid
 
 from flask import current_app, url_for
 
-from services.images import process_upload, process_avatar
+from services.images import process_upload, process_avatar, process_banner
 
 log = logging.getLogger(__name__)
 CACHE_CONTROL = "public, max-age=31536000, immutable"  # keys are random and never reused
@@ -122,6 +122,18 @@ def save_avatar(file_storage) -> str:
         except Exception:
             for path in paths: _remove(path)
             raise
+    return key
+
+
+def save_banner(file_storage) -> str:
+    data = process_banner(file_storage)
+    key = f"{uuid.uuid4().hex}.webp"
+    if _use_s3():
+        _s3_client().put_object(Bucket=current_app.config["S3_BUCKET"], Key=key, Body=data,
+                                ContentType="image/webp", CacheControl=CACHE_CONTROL)
+    else:
+        with open(os.path.join(_folder(), key), "wb") as fh:
+            fh.write(data)
     return key
 
 

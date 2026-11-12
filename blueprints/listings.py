@@ -13,7 +13,7 @@ from flask import Blueprint, abort, current_app, flash, redirect, render_templat
 from flask_login import current_user
 
 from extensions import db, login_manager
-from models import ROLE_BUYER, Category, Product, ProductImage
+from models import CartItem, OrderItem, ROLE_BUYER, Category, Product, ProductImage, WishlistItem
 from services.images import ImageError
 from services.storage import delete_image_files, save_image
 
@@ -23,6 +23,20 @@ TITLE_MAX = 150
 DESCRIPTION_MAX = 2000
 PRICE_MAX = Decimal("10000000")  # N10m
 STOCK_MAX = 100000
+
+
+def _field_errors(error):
+    if not error:
+        return {}
+    message = str(error)
+    lowered = message.lower()
+    if "stock" in lowered: key = "stock"
+    elif "title" in lowered: key = "title"
+    elif "description" in lowered: key = "description"
+    elif "category" in lowered: key = "category_id"
+    elif "price" in lowered or "naira" in lowered: key = "price"
+    else: key = "images"
+    return {key: message}
 
 
 def vendor_required(view):
@@ -131,7 +145,9 @@ def my_products():
     products = (
         Product.query.filter_by(vendor_id=current_user.id).order_by(Product.created_at.desc()).all()
     )
-    return render_template("vendor/products.html", products=products)
+    return render_template("vendor/products.html", products=products,
+                           payout_verification_enabled=current_app.config.get("PAYSTACK_VERIFY_BANK", False),
+                           payout_ready=bool(current_user.vendor_application and current_user.vendor_application.paystack_subaccount_code))
 
 
 @listings_bp.route("/products/new", methods=["GET", "POST"])
@@ -139,6 +155,7 @@ def my_products():
 def new_product():
     categories = Category.query.order_by(Category.name).all()
 
+    field_errors = {}
     if request.method == "POST":
         fields, error = _read_fields(request.form)
         files = _uploaded_files()
@@ -157,7 +174,7 @@ def new_product():
                 error = str(exc)
 
         if error:
-            flash(error, "error")
+            field_errors = _field_errors(error)
         else:
             product = Product(
                 vendor=current_user._get_current_object(),
@@ -175,7 +192,7 @@ def new_product():
             flash("Listing published.", "success")
             return redirect(url_for("listings.my_products"))
 
-    return render_template("vendor/product_form.html", product=None, categories=categories, form=request.form)
+    return render_template("vendor/product_form.html", product=None, categories=categories, form=request.form, field_errors=field_errors)
 
 
 @listings_bp.route("/products/<int:product_id>/edit", methods=["GET", "POST"])
@@ -185,6 +202,7 @@ def edit_product(product_id):
     categories = Category.query.order_by(Category.name).all()
     form = _form_defaults(product)
 
+    field_errors = {}
     if request.method == "POST":
         form = request.form
         fields, error = _read_fields(form)
@@ -205,7 +223,7 @@ def edit_product(product_id):
                 error = str(exc)
 
         if error:
-            flash(error, "error")
+            field_errors = _field_errors(error)
         else:
             product.title = fields["title"]
             product.description = fields["description"]
@@ -224,7 +242,7 @@ def edit_product(product_id):
             flash("Listing updated.", "success")
             return redirect(url_for("listings.my_products"))
 
-    return render_template("vendor/product_form.html", product=product, categories=categories, form=form)
+    return render_template("vendor/product_form.html", product=product, categories=categories, form=form, field_errors=field_errors)
 
 
 @listings_bp.route("/products/<int:product_id>/toggle", methods=["POST"])
@@ -245,6 +263,9 @@ def toggle_availability(product_id):
 def delete_product(product_id):
     product = _own_product_or_404(product_id)
     keys = [i.storage_key for i in product.images]
+    CartItem.query.filter_by(product_id=product.id).delete(synchronize_session=False)
+    WishlistItem.query.filter_by(product_id=product.id).delete(synchronize_session=False)
+    OrderItem.query.filter_by(product_id=product.id).update({OrderItem.product_id: None}, synchronize_session=False)
     db.session.delete(product)
     db.session.commit()
     delete_image_files(keys)  # only after the DB delete succeeded

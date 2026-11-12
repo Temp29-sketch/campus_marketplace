@@ -18,7 +18,7 @@
 {% for a in applications %}
   <article class="app-card">
     <header>
-      <h2>{{ a.business_name }}</h2>
+      <h2><a href="{{ url_for('admin.application_detail', application_id=a.id) }}">{{ a.business_name }}</a> {% if a.id|string in new_ids %}<span class="badge">New</span>{% endif %}</h2>
       <span class="badge {{ a.status }}">{{ a.status }}</span>
     </header>
     <div class="applicant-info">{% with user=a.user, size='small' %}{% include "_avatar.html" %}{% endwith %}<div><strong>{{ a.user.name }}</strong><p class="meta">
@@ -41,8 +41,8 @@
         </form>
         <form method="post" action="{{ url_for('admin.reject', application_id=a.id) }}" class="inline reject">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input name="reason" maxlength="255" placeholder="Reason (shown to the applicant)">
-          <button class="btn danger" type="submit">Reject</button>
+          <input name="reason" maxlength="255" placeholder="Reason (shown to the applicant)" required>
+          <button class="btn" type="submit">Reject</button>
         </form>
       </div>
     {% endif %}

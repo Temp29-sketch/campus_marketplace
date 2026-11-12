@@ -1,0 +1,2 @@
+{% extends "base.html" %}{% block title %}Vendors · {{ app_name }}{% endblock %}{% block content %}<h1>Vendors</h1>
+{% for vendor in vendors %}{% set app=vendor.vendor_application %}<article class="app-card"><h2><a href="{{ url_for('admin.vendor_detail', user_id=vendor.id) }}">{{ app.business_name if app else vendor.name }}</a></h2><p>{{ vendor.role }} · {{ vendor.products|length }} listings · joined {{ vendor.created_at.strftime('%d %b %Y') }}</p></article>{% else %}<p>No active vendors.</p>{% endfor %}{% endblock %}

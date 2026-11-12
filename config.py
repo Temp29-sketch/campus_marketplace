@@ -30,9 +30,19 @@ class Config:
     """Development defaults."""
 
     APP_NAME = APP_NAME
+    PAYSTACK_SECRET_KEY = os.environ.get("PAYSTACK_SECRET_KEY", "")
+    PAYSTACK_PUBLIC_KEY = os.environ.get("PAYSTACK_PUBLIC_KEY", "")
+    PAYMENTS_MODE = os.environ.get("PAYMENTS_MODE", "paystack").strip().lower()
+    PAYSTACK_VERIFY_BANK = _bool("PAYSTACK_VERIFY_BANK", False)
+    PAYSTACK_BASE_URL = os.environ.get("PAYSTACK_BASE_URL", "https://api.paystack.co").rstrip("/")
+    PAYSTACK_CALLBACK_PATH = os.environ.get("PAYSTACK_CALLBACK_PATH", "/checkout/return")
+    COMMISSION_PERCENT = int(os.environ.get("COMMISSION_PERCENT", "10"))
+    MAX_VENDORS_PER_ORDER = int(os.environ.get("MAX_VENDORS_PER_ORDER", "5"))
+    SUPPORT_EMAIL = os.environ.get("SUPPORT_EMAIL", "support@unihub.example")
+    APP_TIMEZONE = os.environ.get("APP_TIMEZONE", "Africa/Lagos")
 
     ENV_NAME = "development"
-    SECRET_KEY = os.environ.get("SECRET_KEY", DEV_SECRET_KEY)
+    SECRET_KEY = os.environ.get("SECRET_KEY") or DEV_SECRET_KEY
     SQLALCHEMY_DATABASE_URI = _database_url()
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}  # survive idle-connection drops
@@ -70,17 +80,13 @@ class Config:
 
     # Photo storage: "local" (a folder) or "s3" (Cloudflare R2, AWS S3, Backblaze B2...)
     STORAGE_BACKEND = os.environ.get("STORAGE_BACKEND", "local")
-    UPLOAD_FOLDER = os.environ.get("UPLOAD_FOLDER", os.path.join(BASE_DIR, "uploads"))
+    UPLOAD_FOLDER = os.environ.get("UPLOAD_FOLDER") or os.path.join(BASE_DIR, "uploads")
     S3_BUCKET = os.environ.get("S3_BUCKET", "")
     S3_ENDPOINT_URL = os.environ.get("S3_ENDPOINT_URL", "")  # R2: https://<account>.r2.cloudflarestorage.com
     S3_REGION = os.environ.get("S3_REGION", "auto")
     S3_ACCESS_KEY_ID = os.environ.get("S3_ACCESS_KEY_ID", "")
     S3_SECRET_ACCESS_KEY = os.environ.get("S3_SECRET_ACCESS_KEY", "")
     S3_PUBLIC_BASE_URL = os.environ.get("S3_PUBLIC_BASE_URL", "").rstrip("/")  # public URL photos load from
-
-    # Catalog: show vendor phone/WhatsApp only to signed-in students (stops scraping).
-    # Set to False to make contact details fully public.
-    REQUIRE_LOGIN_FOR_CONTACT = True
 
     # Rate limiting (Flask-Limiter). Use a shared store such as redis://... when running
     # more than one worker process, or each worker keeps its own separate counters.
@@ -90,7 +96,13 @@ class Config:
 
     @classmethod
     def validate(cls) -> None:
-        """Development accepts anything."""
+        """Development skips deployment secrets but validates payment arithmetic limits."""
+        if not 0 <= cls.COMMISSION_PERCENT <= 50:
+            raise RuntimeError("COMMISSION_PERCENT must be an integer from 0 to 50.")
+        if cls.MAX_VENDORS_PER_ORDER < 1:
+            raise RuntimeError("MAX_VENDORS_PER_ORDER must be at least 1.")
+        if cls.PAYMENTS_MODE not in ("paystack", "demo"):
+            raise RuntimeError("PAYMENTS_MODE must be 'paystack' or 'demo'.")
 
 
 class ProductionConfig(Config):
@@ -101,10 +113,23 @@ class ProductionConfig(Config):
     PREFERRED_URL_SCHEME = "https"
     BEHIND_PROXY = _bool("BEHIND_PROXY", True)  # hosts like Render/Fly/Railway sit behind one proxy
     MAIL_BACKEND = os.environ.get("MAIL_BACKEND", "smtp")
+    PAYSTACK_VERIFY_BANK = _bool("PAYSTACK_VERIFY_BANK", True)
 
     @classmethod
     def validate(cls) -> None:
         problems = []
+        if not cls.PAYSTACK_SECRET_KEY.startswith("sk_live_"):
+            problems.append("PAYSTACK_SECRET_KEY must be a live Paystack secret key.")
+        if not 0 <= cls.COMMISSION_PERCENT <= 50:
+            problems.append("COMMISSION_PERCENT must be an integer from 0 to 50.")
+        if cls.MAX_VENDORS_PER_ORDER < 1:
+            problems.append("MAX_VENDORS_PER_ORDER must be at least 1.")
+        if cls.PAYMENTS_MODE == "demo":
+            problems.append("PAYMENTS_MODE=demo is not allowed in production.")
+        elif cls.PAYMENTS_MODE != "paystack":
+            problems.append("PAYMENTS_MODE must be 'paystack' or 'demo'.")
+        if cls.PAYMENTS_MODE == "paystack" and not cls.PAYSTACK_VERIFY_BANK:
+            problems.append("PAYSTACK_VERIFY_BANK must be true when PAYMENTS_MODE=paystack in production.")
         if cls.SECRET_KEY == DEV_SECRET_KEY or len(cls.SECRET_KEY) < 32:
             problems.append(
                 "SECRET_KEY must be a random value of at least 32 characters. "

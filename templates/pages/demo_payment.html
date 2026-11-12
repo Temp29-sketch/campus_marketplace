@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Demo payment · {{ app_name }}{% endblock %}
+{% block content %}
+<section class="panel demo-payment">
+  <p class="badge pending">DEMO PAYMENT (no real money)</p>
+  <h1>Order {{ order.reference }}</h1>
+  <ul>{% for item in order.items %}<li>{{ item.quantity }} × {{ item.title_snapshot }} — {{ item.line_total_kobo|naira_kobo }}</li>{% endfor %}</ul>
+  <p><strong>Total: {{ order.total_kobo|naira_kobo }}</strong></p>
+  {% if order.status == 'pending' %}
+    <div class="actions">
+      <form method="post" action="{{ url_for('orders.demo_payment_result', reference=order.reference, outcome='success') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn" type="submit">Simulate successful payment</button></form>
+      <form method="post" action="{{ url_for('orders.demo_payment_result', reference=order.reference, outcome='failed') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn" type="submit">Simulate failed payment</button></form>
+    </div>
+  {% else %}<p>Payment status: {{ order.status }}</p>{% endif %}
+</section>
+{% endblock %}

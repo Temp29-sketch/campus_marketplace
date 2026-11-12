@@ -13,7 +13,8 @@ from sqlalchemy.exc import IntegrityError
 from extensions import db
 from services.images import ImageError
 from services.storage import delete_avatar_files, save_avatar
-from services.banks import BANKS, BANK_BY_CODE
+from services.banks import get_banks, bank_name_for_code
+from services.notifications import notify_admins
 from models import APP_PENDING, APP_REJECTED, ROLE_BUYER, Category, User, VendorApplication
 
 vendor_bp = Blueprint("vendor", __name__)
@@ -66,11 +67,13 @@ def apply():
 
     categories = Category.query.order_by(Category.name).all()
 
+    field_errors = {}
     if request.method == "POST":
         form = request.form
         business_name = form.get("business_name", "").strip(); bio = form.get("bio", "").strip()
         phone = normalize_phone(form.get("phone_number", "")); bank_code = form.get("bank_code", "")
         account_number = form.get("account_number", "").strip()
+        account_name = form.get("account_name", "").strip() or user.name
         upload = request.files.get("profile_photo")
         try: category = db.session.get(Category, int(form.get("category_id", "")))
         except ValueError: category = None
@@ -80,19 +83,30 @@ def apply():
         elif not (BIO_MIN <= len(bio) <= BIO_MAX): error = f"Tell buyers about your business in {BIO_MIN}-{BIO_MAX} characters."
         elif phone is None: error = "Enter a valid Nigerian phone number, e.g. 0801 234 5678."
         elif _name_taken(user, business_name): error = "A business with that name already exists on your campus. Please pick another."
-        elif bank_code not in BANK_BY_CODE: error = "Please choose a bank."
+        elif not bank_name_for_code(bank_code): error = "Please choose a bank."
         elif not re.fullmatch(r"\d{10}", account_number): error = "Account number must be exactly 10 digits."
+        elif not (2 <= len(account_name) <= 120): error = "Enter the account name (2-120 characters)."
         elif "own_account" not in form: error = "Confirm these are your own account details."
         elif not user.photo_key and (not upload or not upload.filename): error = "Upload a profile photo."
         if error:
-            flash(error, "error")
+            lowered = error.lower()
+            if "business name" in lowered or "business with that name" in lowered: field = "business_name"
+            elif "category" in lowered: field = "category_id"
+            elif "business" in lowered and "buyers" in lowered: field = "bio"
+            elif "phone" in lowered: field = "phone_number"
+            elif "bank" in lowered: field = "bank_code"
+            elif "account number" in lowered: field = "account_number"
+            elif "own account" in lowered: field = "own_account"
+            else: field = "profile_photo"
+            field_errors[field] = error
         else:
             new_key = None
             if upload and upload.filename:
                 try: new_key = save_avatar(upload)
-                except ImageError as exc: error = str(exc)
+                except ImageError as exc:
+                    error = str(exc); field_errors["profile_photo"] = error
             if error:
-                flash(error, "error")
+                field_errors["profile_photo"] = error
             else:
                 application = existing or VendorApplication(user=user)
                 if existing:
@@ -100,7 +114,8 @@ def apply():
                 else: db.session.add(application)
                 application.business_name = business_name; application.category = category; application.bio = bio
                 application.phone_number = phone; application.bank_code = bank_code
-                application.bank_name = BANK_BY_CODE[bank_code]; application.account_number = account_number
+                application.bank_name = bank_name_for_code(bank_code); application.account_number = account_number
+                application.account_name = account_name
                 application.status = APP_PENDING
                 old_key = user.photo_key
                 if new_key: user.photo_key = new_key
@@ -111,6 +126,7 @@ def apply():
                     flash("Couldn't save your application. Please try again.", "error")
                 else:
                     if new_key and old_key: delete_avatar_files([old_key])
+                    notify_admins(user.university_id, "vendor_application", "New vendor application", f"{user.name} submitted a vendor application.", f"/admin/applications/{application.id}")
                     flash("Application submitted! An admin will review it shortly.", "success")
                 return redirect(url_for("vendor.apply"))
     elif existing and existing.status == APP_REJECTED:  # prefill with the previous attempt
@@ -121,8 +137,9 @@ def apply():
             "phone_number": existing.phone_number,
             "bank_code": existing.bank_code or "",
             "account_number": existing.account_number or "",
+            "account_name": existing.account_name or user.name,
         }
     else:
         form = {}
 
-    return render_template("vendor/apply.html", categories=categories, form=form, application=existing, banks=BANKS)
+    return render_template("vendor/apply.html", categories=categories, form=form, application=existing, banks=get_banks(), field_errors=field_errors)

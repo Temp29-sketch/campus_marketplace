@@ -27,7 +27,7 @@
     let blocks = [];
     try { blocks = JSON.parse(selected.dataset.blocks || '[]'); } catch (_) {}
     if (selected.dataset.hasBlocks === 'true') {
-      blocks.forEach((b) => blockSelect.add(new Option(b.name, b.id)));
+      blocks.forEach((b) => blockSelect.add(new Option(`${b.name} Block`, b.id)));
       if (blockSelect.dataset.selected) blockSelect.value = blockSelect.dataset.selected;
       blockWrap.hidden = false; floorWrap.hidden = true;
     } else {

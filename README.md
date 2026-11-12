@@ -17,6 +17,26 @@ flask --app app run --debug
 
 Verification emails print to the terminal in development (`MAIL_BACKEND=console`).
 
+## Environment variables
+
+Keep all credentials in the project-root `.env` file. `.env` is ignored by Git; never put secrets in Python or commit them.
+
+| Variable | What it is / where to get it | Dev needed | Production needed |
+|---|---|---:|---:|
+| `SECRET_KEY` | Random Flask signing key; generate with `python -c "import secrets; print(secrets.token_hex(32))"` | No | Yes |
+| `DATABASE_URL` | Database connection URL; local SQLite is the default | No | Yes |
+| `PAYMENTS_MODE` | `demo` for presentation or `paystack` for real gateway | Yes | Yes (`paystack`) |
+| `PAYSTACK_VERIFY_BANK` | Allow bank resolution and subaccount API calls | Yes (`false`) | Yes (`true`) |
+| `PAYSTACK_SECRET_KEY` | Paystack Dashboard API key | No in demo | Yes (live) |
+| `PAYSTACK_PUBLIC_KEY` | Paystack Dashboard public key | No in demo | Yes (live) |
+| `COMMISSION_PERCENT` | Platform commission percentage | No (default 10) | Yes (confirm policy) |
+| `PUBLIC_BASE_URL` | Public HTTPS site URL | No | Yes |
+| `MAIL_BACKEND`, `MAIL_FROM` | `console` for local email; sender identity from your email provider | No | Yes |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD` | SMTP connection details from your email provider | No | Yes |
+| `STORAGE_BACKEND` | `local` or `s3` | No (default local) | Yes |
+| `S3_BUCKET`, `S3_ENDPOINT_URL`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_PUBLIC_BASE_URL` | Bucket and credentials from your S3/R2 provider; required with S3 storage | No | If using S3 |
+| `SUPPORT_EMAIL` | Support inbox managed by your team | No | Recommended |
+
 Tests (each prints `ALL ... PASSED`):
 
 ```
@@ -26,6 +46,10 @@ python test_moderation.py   # reports, removal, vendor revocation
 python test_services.py     # production config, email, photo storage, headers (no database)
 python test_stock.py        # product stock behavior
 python test_accounts.py     # accounts, hostel addresses, photos, banking, settings and privacy
+python test_notifications_admin_banners.py # notifications, admin dashboard and banners
+python test_storefront.py   # storefront, cart shell and campus scoping
+python test_payments.py     # cart, checkout, Paystack callbacks and orders (fake Paystack; no network)
+node test_price_input.js    # live price formatting
 ```
 
 ## Accounts and campus addresses
@@ -40,12 +64,21 @@ The default database is `unihub.db`. After pulling changes that add or alter tab
 
 | Who | Can do |
 |---|---|
-| Buyer | Sign up with any email, browse, search, contact sellers, report listings |
+| Buyer | Sign up with any email, browse, search, use cart and checkout, track orders, report listings |
 | Vendor | Sign up with a **school email** (password and hostel address entered first; email confirmation creates the account), apply with a profile photo and bank details, get approved, list products/services with photos |
 | Admin | Approve/reject vendor applications, review reports, remove listings, revoke vendors. Only for their own campus. Created with `flask --app app create-admin`, never by signup |
 
-Vendors are also buyers, so they can buy from each other. Phone numbers and WhatsApp buttons are shown to
-signed-in students only (`REQUIRE_LOGIN_FOR_CONTACT` in `config.py`).
+Vendors are also buyers, so they can buy from each other. Vendor phone numbers are collected for campus administration and are not shown to buyers.
+
+## Paystack checkout
+
+For local presentation testing, set `PAYMENTS_MODE=demo` and `PAYSTACK_VERIFY_BANK=false` in the project-root `.env`. Sign up or log in as a buyer, add an item to the cart, open Cart → Checkout, then click **Simulate successful payment** or **Simulate failed payment**. Demo orders never call Paystack or move money. Never use demo mode in production.
+
+Before going live: set `PAYMENTS_MODE=paystack`, `PAYSTACK_VERIFY_BANK=true`, add live keys, then re-approve or run the payout-account retry for every vendor created with mock data. `COMMISSION_PERCENT` defaults to 10 and accepts 0–50; `MAX_VENDORS_PER_ORDER` defaults to 5. A checkout splits each vendor's net share directly to that vendor's Paystack subaccount; UniHub never holds vendor proceeds. The buyer pays only the listed item prices, and Paystack fees are borne by the main account.
+
+For a local webhook test, run the app and expose it with ngrok http 5000 (or a similar HTTPS tunnel). Set the Paystack dashboard webhook URL to https://<tunnel>/webhooks/paystack. Use Paystack's published test cards and test bank accounts; no live credentials should be used in local development.
+
+Before going live, use live keys, confirm split limits (maximum subaccounts, remainder handling, and minimums) and fee pricing with Paystack in writing, confirm with Paystack and a lawyer that split payments suit a campus marketplace, and check that the commission covers payment fees. **TODO:** Paystack's split documentation does not clearly specify the maximum number of subaccounts, remainder handling, or minimum share; confirm these details before launch.
 
 ## Before the first deploy (one-time, on your computer)
 

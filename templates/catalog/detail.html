@@ -3,21 +3,21 @@
 {% block content %}
 <p><a class="btn" href="{{ url_for('index') }}">← Back to listings</a></p>
 
-<div class="detail">
+<div class="detail" id="product-{{ product.id }}">
   <div class="gallery">
     {% if product.images %}
-      <img class="main-photo" src="{{ image_url(product.images[0].storage_key) }}" alt="{{ product.title }}">
+      <div class="image-frame detail-image shimmer"><img class="main-photo" loading="lazy" src="{{ image_url(product.images[0].storage_key) }}" data-placeholder="true" alt="{{ product.title }}"></div>
       {% if product.images|length > 1 %}
         <div class="photo-row">
           {% for img in product.images[1:] %}
-            <a href="{{ image_url(img.storage_key) }}" target="_blank" rel="noopener">
-              <img src="{{ thumb_url(img.storage_key) }}" alt="{{ product.title }} photo {{ loop.index + 1 }}" loading="lazy">
+            <a class="image-frame shimmer" href="{{ image_url(img.storage_key) }}" target="_blank" rel="noopener">
+              <img src="{{ thumb_url(img.storage_key) }}" alt="{{ product.title }} photo {{ loop.index + 1 }}" loading="lazy" data-placeholder="true">
             </a>
           {% endfor %}
         </div>
       {% endif %}
     {% else %}
-      <div class="main-photo placeholder">{{ 'Service' if product.is_service else 'No photo' }}</div>
+      <div class="main-photo placeholder image-fallback" role="img" aria-label="No listing photo"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M23 27V18a9 9 0 0 1 18 0v9" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><path d="M11 23h42l-3 31a4.5 4.5 0 0 1-4.5 4H18.5A4.5 4.5 0 0 1 14 54z" fill="currentColor"/></svg></div>
     {% endif %}
   </div>
 
@@ -43,23 +43,17 @@
       <h2><a href="{{ url_for('catalog.store', vendor_id=product.vendor_id) }}">{{ product.business_name }}</a>
         <span class="verified" title="Verified student vendor">✓ Verified</span></h2>
 
-      {% set state = contact_state(product) %}
-      {% if state == 'ok' %}
-        {% set wa = whatsapp_url(product.contact_phone, product.business_name, product.title, product.price|naira) %}
-        {% set tel = tel_url(product.contact_phone) %}
-        <p>{{ display_phone(product.contact_phone) }}</p>
-        <div class="actions">
-          {% if wa %}<a class="btn" href="{{ wa }}" target="_blank" rel="noopener">Chat on WhatsApp</a>{% endif %}
-          {% if tel %}<a class="btn alt" href="{{ tel }}">Call</a>{% endif %}
-        </div>
-      {% elif state == 'login' %}
-        <a class="btn" href="{{ url_for('auth.login', next=url_for('catalog.item', product_id=product.id)) }}">Log in to contact seller</a>
-        <p class="muted small">Contact details are shown to signed-in students only.</p>
-      {% elif state == 'soldout' %}
+      {% if not product.is_available %}
         <p class="muted">This item is currently sold out.</p>
-      {% elif state == 'own' %}
+      {% elif current_user.is_authenticated and current_user.id == product.vendor_id %}
         <p class="muted">This is your listing.</p>
         <a class="btn small-btn" href="{{ url_for('listings.edit_product', product_id=product.id) }}">Edit listing</a>
+      {% else %}
+        <div class="detail-actions">
+          <form method="post" action="{{ url_for('pages.cart_add', product_id=product.id) }}#product-{{ product.id }}" data-cart-form><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn" type="submit" data-add-to-cart>Add to cart</button></form>
+          {% if current_user.is_authenticated %}<form method="post" action="{{ url_for('pages.wishlist_toggle', product_id=product.id) }}" data-wishlist-form><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="heart-button detail-heart{% if is_saved %} saved{% endif %}" type="submit" aria-label="{{ 'Remove from wishlist' if is_saved else 'Save to wishlist' }}" aria-pressed="{{ 'true' if is_saved else 'false' }}">♥ {{ 'Saved' if is_saved else 'Save' }}</button></form>
+          {% else %}<a class="heart-button detail-heart" href="{{ url_for('auth.login', next=url_for('catalog.item', product_id=product.id) ~ '#product-' ~ product.id) }}">♡ Save</a>{% endif %}
+        </div>
       {% endif %}
     </div>
   </div>

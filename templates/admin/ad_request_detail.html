@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}{{ ad_request.business_name }} · Ad request{% endblock %}
+{% block content %}<h1>{{ ad_request.business_name }}</h1><p>{{ ad_request.contact_name }} · {{ ad_request.phone }} · <a href="mailto:{{ ad_request.email }}">{{ ad_request.email }}</a></p><p>{{ ad_request.created_at.strftime('%d %b %Y, %H:%M') }} · {{ ad_request.status|title }}</p><p>{{ ad_request.message }}</p>
+{% if ad_request.image_key %}<img class="ad-request-image" src="{{ image_url(ad_request.image_key) }}" alt="Submitted banner concept">{% endif %}
+<form method="post" class="form-card"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label for="admin_note">Internal note</label><textarea id="admin_note" name="admin_note">{{ ad_request.admin_note }}</textarea><div class="button-row">{% for status,label in [('contacted','Mark contacted'),('accepted','Accept'),('rejected','Reject')] %}<button class="btn" name="status" value="{{ status }}" type="submit">{{ label }}</button>{% endfor %}</div></form>
+<a class="btn" href="{{ url_for('admin.banner_new', ad_request_id=ad_request.id) }}">Create banner from this request</a> <a href="{{ url_for('admin.ad_requests') }}">Back to requests</a>{% endblock %}

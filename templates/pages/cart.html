@@ -1,0 +1,13 @@
+{% extends "base.html" %}{% block title %}Cart · {{ app_name }}{% endblock %}
+{% block content %}<h1>Your cart</h1>
+{% if not groups %}<div class="empty"><p class="muted">Your cart is empty.</p><a class="btn" href="{{ url_for('index') }}">Browse listings</a></div>
+{% else %}{% for group in groups %}<section class="cart-vendor"><h2>{{ group.business_name }}</h2>
+{% for line in group["items"] %}{% set item=line.item %}{% set p=line.product %}<article class="cart-line">
+{% if p and p.cover_image %}<a class="cart-line-image image-frame shimmer" href="{{ url_for('catalog.item', product_id=p.id) }}"><img src="{{ thumb_url(p.cover_image.storage_key) }}" alt="{{ p.title }}" loading="lazy" data-placeholder="true"></a>{% endif %}
+<div class="cart-line-main"><h3>{{ p.title if p else 'Listing unavailable' }}</h3>{% if p %}<p>{{ p.price|naira }} each</p>{% endif %}
+{% if line.problem %}<p class="flash error cart-problem">{{ line.problem }}</p>{% endif %}</div>
+{% if p %}<form class="cart-quantity" method="post" action="{{ url_for('pages.cart_update', product_id=p.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label for="quantity-{{ p.id }}">Quantity</label><input id="quantity-{{ p.id }}" type="number" name="quantity" min="1" max="{{ 1 if p.is_service else (p.stock if p.stock is not none else 10) }}" step="1" value="{{ item.quantity }}"><button class="btn" type="submit">Update</button>
+{% if item.unit_price_kobo != ((p.price * 100)|int) %}<button class="link" type="submit" name="refresh_price" value="1">Accept current price</button>{% endif %}</form>{% endif %}
+<form method="post" action="{{ url_for('pages.cart_remove', product_id=item.product_id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="link" type="submit">Remove</button></form></article>{% endfor %}
+<p class="cart-subtotal"><strong>Subtotal:</strong> {{ group.subtotal_kobo|naira_kobo }}</p></section>{% endfor %}
+<div class="cart-footer">{% if has_problems %}<button class="btn" type="button" disabled>Fix cart items to continue</button>{% else %}<a class="btn" href="{{ url_for('orders.checkout') }}">Proceed to checkout</a>{% endif %}</div>{% endif %}{% endblock %}

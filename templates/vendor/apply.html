@@ -18,10 +18,12 @@
     {% if current_user.photo_key %}<div class="avatar-preview">{% with user=current_user, size='large' %}{% include "_avatar.html" %}{% endwith %}</div>{% endif %}
     <label for="profile_photo">Profile photo{% if not current_user.photo_key %} (required){% endif %}</label>
     <input id="profile_photo" type="file" name="profile_photo" accept="image/jpeg,image/png,image/webp" {% if not current_user.photo_key %}required{% endif %}>
+    {% with field='profile_photo' %}{% include "_field_error.html" %}{% endwith %}
     <p class="muted small">This is how buyers will recognise you. Use a clear photo of your face.</p>
 
     <label for="business_name">Business name</label>
     <input id="business_name" name="business_name" value="{{ form.get('business_name', '') }}" maxlength="120" required>
+    {% with field='business_name' %}{% include "_field_error.html" %}{% endwith %}
 
     <label for="category_id">Category</label>
     <select id="category_id" name="category_id" required>
@@ -30,19 +32,27 @@
         <option value="{{ c.id }}" {% if form.get('category_id') == c.id|string %}selected{% endif %}>{{ c.name }}</option>
       {% endfor %}
     </select>
+    {% with field='category_id' %}{% include "_field_error.html" %}{% endwith %}
 
     <label for="bio">About your business</label>
     <textarea id="bio" name="bio" rows="5" maxlength="1000" required>{{ form.get('bio', '') }}</textarea>
+    {% with field='bio' %}{% include "_field_error.html" %}{% endwith %}
 
     <label for="phone_number">Phone / WhatsApp number</label>
     <input id="phone_number" type="tel" name="phone_number" value="{{ form.get('phone_number', '') }}" placeholder="0801 234 5678" required>
+    {% with field='phone_number' %}{% include "_field_error.html" %}{% endwith %}
     <p class="muted small">Buyers will use this number to reach you.</p>
 
     <label for="bank_code">Bank</label>
     <select id="bank_code" name="bank_code" required><option value="">Choose a bank</option>{% for name, code in banks %}<option value="{{ code }}" {% if form.get('bank_code') == code %}selected{% endif %}>{{ name }}</option>{% endfor %}</select>
+    {% with field='bank_code' %}{% include "_field_error.html" %}{% endwith %}
     <label for="account_number">Account number</label>
     <input id="account_number" name="account_number" inputmode="numeric" pattern="[0-9]{10}" minlength="10" maxlength="10" value="{{ form.get('account_number', '') }}" required>
+    {% with field='account_number' %}{% include "_field_error.html" %}{% endwith %}
+    <label for="account_name">Account name</label><input id="account_name" name="account_name" maxlength="120" value="{{ form.get('account_name', current_user.name) }}" required>
+    {% with field='account_name' %}{% include "_field_error.html" %}{% endwith %}
     <label class="check"><input type="checkbox" name="own_account" required>These are my own account details</label>
+    {% with field='own_account' %}{% include "_field_error.html" %}{% endwith %}
     <button class="btn full" type="submit">Submit application</button>
   </form>
 </div>

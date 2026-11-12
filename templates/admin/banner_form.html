@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if banner and banner.id else 'Create' }} banner · {{ app_name }}{% endblock %}
+{% block content %}
+<h1>{{ 'Edit' if banner and banner.id else 'Create' }} banner</h1>
+<div class="banner-size-guide"><strong>Recommended size: 1600 x 400 px (4:1).</strong> JPG, PNG or WebP, under 1 MB. On phones the left and right edges are cropped, so keep logos and text in the centre 60% of the image. Tall photos work best with Fit. For a full-bleed look, design a wide image (1600 x 400 px) with the picture on one side and the advert text on the other.</div>
+<form method="post" enctype="multipart/form-data" class="banner-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label for="title">Title (optional)</label><input id="title" name="title" maxlength="150" value="{{ request.form.get('title', banner.title if banner else '') }}" aria-describedby="title-error">
+  {% if title_error|default('') %}<small id="title-error" class="field-error" role="alert">{{ title_error }}</small>{% endif %}
+  <label for="subtitle">Subtitle</label><textarea id="subtitle" name="subtitle" maxlength="300" aria-describedby="subtitle-error">{{ request.form.get('subtitle', banner.subtitle if banner else '') }}</textarea>
+  {% if subtitle_error|default('') %}<small id="subtitle-error" class="field-error" role="alert">{{ subtitle_error }}</small>{% endif %}
+  <label for="image">Banner image {{ '(leave blank to keep current)' if banner and banner.image_key else '' }}</label>
+  <input id="image" name="image" type="file" accept="image/jpeg,image/png,image/webp" {% if not banner or not banner.image_key %}required{% endif %} aria-describedby="image-warning image-error">
+  <p id="image-warning" class="field-help" aria-live="polite">Select a JPG, PNG or WebP image to preview how it will appear. Tall photos are automatically set to Fit.</p>
+  <small id="image-error" class="field-error" role="alert" {% if not image_error|default('') %}hidden{% endif %}>{{ image_error|default('') }}</small>
+  <fieldset class="banner-fit-options"><legend>How should the image be shown?</legend>
+    <label class="banner-mode-card"><input type="radio" name="fit_mode" value="fill" data-fit-mode {% if fit_mode == 'fill' %}checked{% endif %}><span class="banner-mode-illustration banner-mode-fill" aria-hidden="true"></span><span><strong>Fill the banner</strong><small>Crops the image to the banner shape.</small></span></label>
+    <label class="banner-mode-card"><input type="radio" name="fit_mode" value="fit" data-fit-mode {% if fit_mode == 'fit' %}checked{% endif %}><span class="banner-mode-illustration banner-mode-fit" aria-hidden="true"></span><span><strong>Fit the whole image</strong><small>Shows the entire image over a soft blurred background.</small></span></label>
+  </fieldset>
+  <p class="field-help" data-smart-fit-note hidden>This image is not wide enough to fill the banner, so we selected Fit.</p>
+  <fieldset class="banner-focus-control" data-focus-control {% if fit_mode == 'fit' %}hidden{% endif %}><legend>Show:</legend>
+    <label><input type="radio" name="focus" value="top" data-focus {% if focus == 'top' %}checked{% endif %}><span>Top</span></label>
+    <label><input type="radio" name="focus" value="center" data-focus {% if focus == 'center' %}checked{% endif %}><span>Middle</span></label>
+    <label><input type="radio" name="focus" value="bottom" data-focus {% if focus == 'bottom' %}checked{% endif %}><span>Bottom</span></label>
+  </fieldset>
+  <div class="banner-preview-pair" data-banner-previews {% if not banner or not banner.image_key %}hidden{% endif %}>
+    <figure><figcaption>Desktop preview (4:1)</figcaption><div class="banner-preview-box banner-image shimmer banner-preview-desktop {% if fit_mode == 'fit' %}banner-fit{% endif %}" data-banner-preview-box><img data-preview-backdrop aria-hidden="true" alt="" {% if banner and banner.image_key %}src="{{ image_url(banner.image_key) }}"{% endif %}><img class="banner-focus-{{ focus }}" data-preview-main alt="Desktop banner preview" {% if banner and banner.image_key %}src="{{ image_url(banner.image_key) }}"{% endif %}></div></figure>
+    <figure><figcaption>Phone preview (5:2)</figcaption><div class="banner-preview-box banner-image shimmer banner-preview-mobile {% if fit_mode == 'fit' %}banner-fit{% endif %}" data-banner-preview-box><img data-preview-backdrop aria-hidden="true" alt="" {% if banner and banner.image_key %}src="{{ image_url(banner.image_key) }}"{% endif %}><img class="banner-focus-{{ focus }}" data-preview-main alt="Phone banner preview" {% if banner and banner.image_key %}src="{{ image_url(banner.image_key) }}"{% endif %}></div></figure>
+  </div>
+  <label for="link_url">Link (optional)</label><input id="link_url" name="link_url" type="text" inputmode="url" value="{{ request.form.get('link_url', banner.link_url if banner else '') or '' }}" placeholder="https://example.com or /store/12" aria-describedby="link-help link-error">
+  <small id="link-help" class="field-help">Where should the banner take people when they tap it? Use the advertiser's website, their Instagram or a WhatsApp link (https://wa.me/234...), or a page on UniHub like /store/12. Leave empty if the banner should not be clickable.</small>
+  <small id="link-error" class="field-error" {% if not link_error|default('') %}hidden{% endif %}>{{ link_error|default('') }}</small>
+  <div class="banner-button-text-field" data-banner-button-field><label for="button_text">Button text</label><input id="button_text" name="button_text" maxlength="40" value="{{ request.form.get('button_text', banner.button_text if banner else '') or '' }}"><small class="field-help">Shown on the banner button, for example Shop now. Only used when a link is set.</small></div>
+  <label for="starts_at">Starts at ({{ app_timezone }})</label><input id="starts_at" type="datetime-local" name="starts_at" value="{{ start_value|default('') }}" aria-describedby="starts-error">
+  {% if start_error|default('') %}<small id="starts-error" class="field-error" role="alert">{{ start_error }}</small>{% endif %}
+  <label for="ends_at">Ends at ({{ app_timezone }})</label><input id="ends_at" type="datetime-local" name="ends_at" value="{{ end_value|default('') }}" aria-describedby="ends-error">
+  {% if end_error|default('') %}<small id="ends-error" class="field-error" role="alert">{{ end_error }}</small>{% endif %}
+  <label class="check"><input type="checkbox" name="is_active" {% if request.method != 'POST' and (not banner or banner.is_active) or request.form.get('is_active') %}checked{% endif %}> Active</label>
+  <button class="btn" type="submit">Save banner</button>
+</form>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='banner-form.js') }}" defer></script><script src="{{ url_for('static', filename='banner-admin.js') }}" defer></script>{% endblock %}

@@ -4,10 +4,12 @@
 <div class="card">
   <h1>Report this listing</h1>
   <p><strong>{{ product.title }}</strong><br><span class="muted">by {{ product.business_name }}</span></p>
+  {% if order %}<p>Regarding order {{ order.reference }}.</p>{% endif %}
   <p class="muted small">Reports are private: the vendor never sees who sent them. An admin from your campus reviews every report.</p>
 
   <form method="post" novalidate>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if order %}<input type="hidden" name="order_id" value="{{ order.id }}">{% endif %}
 
     <fieldset>
       <legend>What's wrong?</legend>

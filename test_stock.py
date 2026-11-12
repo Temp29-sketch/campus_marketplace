@@ -28,10 +28,12 @@ admin_c=login('admin@x.test'); buyer_c=login('buyer@x.test'); vendor_c=login('ve
 assert '/settings' in body(buyer_c.get('/')) and 'B' in body(buyer_c.get('/'))
 assert buyer_c.get('/settings').status_code==200 and 'Profile settings' in body(buyer_c.get('/settings'))
 assert vendor_c.get('/settings').status_code==200
-assert admin_c.get('/settings').status_code==403
+assert admin_c.get('/settings').status_code==200
 admin_menu=body(admin_c.get('/'))
 assert 'Log out' in admin_menu and 'Profile settings' not in admin_menu
-assert 'Applications' in admin_menu and 'Reports' in admin_menu and 'class="btn"' in admin_menu
+admin_sidebar=admin_menu.split('<aside class="sidebar"',1)[1].split('</aside>',1)[0]
+assert all(label in admin_sidebar for label in ('Admin dashboard', 'Applications', 'Reports', 'Vendors', 'Buyers', 'Banners', 'Settings', 'Log out'))
+assert 'Orders' in admin_sidebar and 'Wishlist' not in admin_sidebar and 'Account' not in admin_sidebar
 assert 'class="btn"' in body(vendor_c.get('/')) and 'My listings' in body(vendor_c.get('/'))
 assert 'class="btn"' in body(buyer_c.get('/')) and 'Become a vendor' in body(buyer_c.get('/'))
 print('settings and header checks ok')

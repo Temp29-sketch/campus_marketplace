@@ -13,7 +13,8 @@ from flask_login import current_user, login_required
 
 from blueprints.catalog import _university_scope, _visible_products
 from extensions import db
-from models import REPORT_OPEN, REPORT_REASONS, Product, Report, utcnow
+from models import REPORT_OPEN, REPORT_REASONS, Order, OrderItem, Product, Report, utcnow
+from services.notifications import notify_admins
 
 reports_bp = Blueprint("reports", __name__)
 
@@ -27,6 +28,12 @@ OTHER_MIN_DETAILS = 10  # "Something else" needs an explanation
 def new(product_id):
     product = _visible_products(_university_scope()).filter(Product.id == product_id).first_or_404()
     user = current_user._get_current_object()
+    order = None
+    raw_order_id = request.values.get("order_id")
+    if raw_order_id:
+        try: order = Order.query.filter_by(id=int(raw_order_id), buyer_id=user.id).first()
+        except ValueError: order = None
+        if order and not OrderItem.query.filter_by(order_id=order.id, product_id=product.id).first(): order = None
     back = redirect(url_for("catalog.item", product_id=product.id))
 
     if product.vendor_id == user.id:
@@ -54,9 +61,15 @@ def new(product_id):
         if error:
             flash(error, "error")
         else:
+            if order:
+                context = f"Order {order.reference} · vendor {product.vendor.vendor_application.business_name}. "
+                details = (context + details)[:DETAILS_MAX]
             db.session.add(Report(product=product, reporter=user, reason=reason, details=details or None))
             db.session.commit()
+            notify_admins(product.vendor.university_id, "report", "New listing report", f"A report was filed for {product.title}.", f"/admin/reports")
+            if order:
+                notify_admins(product.vendor.university_id, "order_problem", f"Order problem reported for #{order.id}", f"A buyer reported a problem with {product.title}.", f"/admin/orders")
             flash("Thanks. An admin will review your report. The vendor won't see who sent it.", "success")
             return back
 
-    return render_template("reports/new.html", product=product, reasons=REPORT_REASONS, form=request.form)
+    return render_template("reports/new.html", product=product, reasons=REPORT_REASONS, form=request.form, order=order)

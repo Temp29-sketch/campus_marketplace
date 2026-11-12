@@ -36,6 +36,7 @@ def png_upload(name="a.png", size=(400, 300)):
 
 # 1. Production config refuses unsafe or incomplete settings -------------------------------
 class Good(ProductionConfig):
+    PAYSTACK_SECRET_KEY = "sk_live_" + "p" * 32
     SECRET_KEY = "k" * 40
     PUBLIC_BASE_URL = "https://campus.example"
     SQLALCHEMY_DATABASE_URI = "postgresql://u:p@h/db"
@@ -278,7 +279,10 @@ client = app.test_client()
 secure = client.get("/", base_url="https://campus.example")
 h = secure.headers
 assert "script-src 'self'" in h["Content-Security-Policy"] and "frame-ancestors 'none'" in h["Content-Security-Policy"]
-assert "img-src 'self' data: https://cdn.example" in h["Content-Security-Policy"] and "unsafe-inline" not in h["Content-Security-Policy"]
+assert "img-src 'self' data: blob: https://cdn.example" in h["Content-Security-Policy"]
+assert "unsafe-inline" not in h["Content-Security-Policy"]
+script_policy = next(part for part in h["Content-Security-Policy"].split(";") if part.strip().startswith("script-src"))
+assert "'unsafe-inline'" not in script_policy
 assert h["X-Frame-Options"] == "DENY" and h["X-Content-Type-Options"] == "nosniff"
 assert h["Strict-Transport-Security"].startswith("max-age=")
 assert "Strict-Transport-Security" not in client.get("/", base_url="http://campus.example").headers

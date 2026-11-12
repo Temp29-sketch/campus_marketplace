@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Advertise with us · {{ app_name }}{% endblock %}
+{% block content %}
+<section class="form-card"><h1>Advertise with us</h1>
+<p>Tell us about your business and we’ll contact you with campus advertising options.</p>
+<form method="post" enctype="multipart/form-data">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="honeypot" aria-hidden="true"><label for="website">Leave this field empty</label><input id="website" name="website" tabindex="-1" autocomplete="off"></div>
+  <label for="business_name">Business name</label><input id="business_name" name="business_name" maxlength="150" required value="{{ request.form.get('business_name','') }}">
+  <label for="contact_name">Contact name</label><input id="contact_name" name="contact_name" maxlength="120" required value="{{ request.form.get('contact_name', current_user.name) }}">
+  <label for="phone">Phone number</label><input id="phone" name="phone" type="tel" required value="{{ request.form.get('phone', current_user.phone_number or '') }}">
+  <label for="email">Email</label><input id="email" name="email" type="email" required value="{{ request.form.get('email', current_user.email) }}">
+  <label for="message">What would you like to promote?</label><textarea id="message" name="message" maxlength="1000" required>{{ request.form.get('message','') }}</textarea>
+  <label for="image">Banner image (optional)</label><input id="image" name="image" type="file" accept="image/jpeg,image/png,image/webp">
+  <button class="btn" type="submit">Send request</button>
+</form></section>
+{% endblock %}

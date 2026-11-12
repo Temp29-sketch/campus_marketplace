@@ -21,7 +21,8 @@ with app.app_context():
     boys_old = Hostel.query.filter_by(name="Old Hostel (Boys)").one()
     boys_new = Hostel.query.filter_by(name="New Hostel (Boys)").one()
     girls_old = Hostel.query.filter_by(name="Old Hostel (Girls)").one()
-    assert all(h['id'] != girls_old.id for h in hostel_options(uni.id))
+    girls_options = [h for h in hostel_options(uni.id) if h['id'] == girls_old.id]
+    assert girls_options and [b['name'] for b in girls_options[0]['blocks']] == ["Dorcas", "Abigail", "Esther", "Deborah", "Lois", "Hannah", "Ketura", "Naomi", "Rehab", "Gra", "Shera"]
     block = HostelBlock.query.filter_by(hostel_id=boys_old.id, name="Abel").one()
     clean, error = validate_address(uni.id, boys_old.id, block.id, "", "12a")
     assert not error and clean['room_number'] == '12A'
@@ -50,11 +51,11 @@ address = {'hostel_id': str(boys_new_id), 'hostel_block_id':'', 'floor':'2', 'ro
 # Branding and buyer signup.
 for path in ('/', '/login', '/register', '/register/vendor'):
     page=body(client.get(path)); assert 'Campus Market' not in page and 'UniHub' in page
-assert client.post('/register', data={'name':'Buyer One','email':'buyer@example.test','password':'password123','university_id':university_id,**address}).status_code==302
+assert client.post('/register', data={'name':'Buyer One','email':'buyer@example.test','password':'password123','confirm_password':'password123','university_id':university_id,**address}).status_code==302
 with app.app_context():
     buyer=User.query.filter_by(email='buyer@example.test').one(); assert buyer.hostel_id==boys_new_id and buyer.floor==2 and buyer.room_number=='B-12'; buyer_id=buyer.id
 buyer_client=login('buyer@example.test')
-assert app.test_client().post('/register', data={'name':'Invalid','email':'bad@example.test','password':'password123','university_id':university_id,**{**address,'floor':'5'}}).status_code==200
+assert app.test_client().post('/register', data={'name':'Invalid','email':'bad@example.test','password':'password123','confirm_password':'password123','university_id':university_id,**{**address,'floor':'5'}}).status_code==200
 
 # Vendor password-first: hashed pending, GET is side-effect-free; confirm POST creates the user.
 signup=app.test_client()
@@ -164,9 +165,9 @@ assert vendor_client.post('/settings/bank', data={'bank_code':'058','account_num
 before=len(app.extensions['outbox'])
 assert vendor_client.post('/settings/bank', data={'bank_code':'058','account_number':'9876543210','current_password':'newpassword'}).status_code==302
 assert len(app.extensions['outbox'])==before+1
-with app.app_context(): va=db.session.get(VendorApplication,va_id); assert va.account_name is None and va.paystack_subaccount_code is None and va.bank_name=='GTBank'
+with app.app_context(): va=db.session.get(VendorApplication,va_id); assert va.account_name == db.session.get(User,vendor_id).name and va.paystack_subaccount_code is None and va.bank_name=='GTBank'
 assert app.test_client().get('/settings').status_code==302
-admin_client=login('admin@test.invalid'); assert admin_client.get('/settings').status_code==403
+admin_client=login('admin@test.invalid'); assert admin_client.get('/settings').status_code==200
 print('settings checks ok')
 
 # Public privacy: buyer address/photo and any bank data do not leak; vendor image is public.

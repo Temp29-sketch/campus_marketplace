@@ -73,3 +73,31 @@ def process_avatar(file_storage):
         def encode(image):
             out = io.BytesIO(); image.save(out, "WEBP", quality=82, method=4); return out.getvalue()
         return encode(square), encode(thumb)
+
+
+def process_banner(file_storage):
+    """Validate and resize banner artwork without cropping; display CSS crops it."""
+    cfg = current_app.config
+    name = file_storage.filename or "banner"
+    data = file_storage.read(cfg["MAX_IMAGE_BYTES"] + 1)
+    if not data or len(data) > cfg["MAX_IMAGE_BYTES"]:
+        raise ImageError(f"{name} is empty or too large.")
+    Image.MAX_IMAGE_PIXELS = cfg["MAX_IMAGE_PIXELS"]
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            img = Image.open(io.BytesIO(data))
+            if img.format not in ALLOWED_FORMATS:
+                raise ImageError(f"{name}: only JPG, PNG or WebP photos are allowed.")
+            img.load()
+    except ImageError:
+        raise
+    except (UnidentifiedImageError, Image.DecompressionBombError, Image.DecompressionBombWarning, OSError, ValueError):
+        raise ImageError(f"{name} isn't a valid image.")
+    img = _to_rgb(ImageOps.exif_transpose(img))
+    if img.width > 1600:
+        resized_height = max(1, round(img.height * 1600 / img.width))
+        img = img.resize((1600, resized_height), Image.Resampling.LANCZOS)
+    out = io.BytesIO()
+    img.save(out, "WEBP", quality=82, method=4)
+    return out.getvalue()

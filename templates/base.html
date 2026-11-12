@@ -5,48 +5,89 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{{ app_name }}{% endblock %}</title>
   <script src="{{ url_for('static', filename='theme-init.js') }}"></script>
+  <link rel="icon" href="{{ url_for('static', filename='brand/favicon.svg') }}" type="image/svg+xml">
+  <link rel="alternate icon" href="{{ url_for('static', filename='brand/favicon.ico') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='brand/apple-touch-icon.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
+  <div class="navigation-progress" aria-hidden="true"></div>
+  <div class="offline-banner" role="status" hidden>You are offline. Some actions will not work.</div>
   <header class="nav">
-    <a class="brand" href="{{ url_for('index') }}">Uni<span>Hub</span></a>
-    <nav>
+    <button class="sidebar-toggle" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="site-sidebar"><span aria-hidden="true">☰</span></button>
+    <a class="brand" href="{{ url_for('index') }}" aria-label="UniHub home">
+      <svg class="brand-bag" viewBox="0 0 64 64" aria-hidden="true"><path d="M23 27V18a9 9 0 0 1 18 0v9" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><path d="M11 23h42l-3 31a4.5 4.5 0 0 1-4.5 4H18.5A4.5 4.5 0 0 1 14 54z" fill="currentColor"/><path d="M23.5 36c5 6.5 12 6.5 17 0" fill="none" stroke="var(--brand-ink)" stroke-width="3.2" stroke-linecap="round"/></svg>
+      <span>Uni<span>Hub</span></span>
+    </a>
+    <form class="site-search" method="get" action="{{ url_for('index') }}" role="search">
+      <input type="search" name="q" value="{{ request.args.get('q', '') }}" placeholder="Search listings" autocomplete="off" aria-label="Search listings">
+      {% if request.endpoint == 'index' %}<input type="hidden" name="category" value="{{ active_category|default(request.args.get('category', '')) }}">{% endif %}
+      <button class="btn search-submit" type="submit">Search</button>
+    </form>
+    <div class="header-actions">
+      <button class="search-toggle" type="button" aria-label="Open search" aria-expanded="false">⌕</button>
+      {% if not current_user.is_authenticated or current_user.role == 'buyer' %}
+        <a class="btn become-vendor" href="{{ url_for('auth.register_vendor') if not current_user.is_authenticated else url_for('vendor.apply') }}">Become a vendor</a>
+      {% endif %}
+      <a class="cart-link" href="{{ url_for('pages.cart') }}" aria-label="Cart, {{ cart_count }} items"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2.1 10.2a2 2 0 0 0 2 1.6h7.8a2 2 0 0 0 1.9-1.4L21 8H6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/></svg><span class="cart-count">{{ cart_count }}</span></a>
       {% if current_user.is_authenticated %}
-        {% if current_user.role == 'buyer' %}
-          <a class="btn" href="{{ url_for('vendor.apply') }}">Become a vendor</a>
-        {% elif current_user.role == 'vendor' %}
-          <a class="btn" href="{{ url_for('listings.my_products') }}">My listings</a>
-        {% elif current_user.role == 'admin' %}
-          <a class="btn" href="{{ url_for('admin.applications') }}">Applications</a>
-          <a class="btn" href="{{ url_for('admin.reports') }}">Reports</a>
-        {% endif %}
+        <details class="notification-menu" data-endpoint="{{ url_for('notifications.api') }}" data-csrf-token="{{ csrf_token() }}">
+          <summary aria-label="Notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="notification-count" hidden></span></summary>
+          <div class="notification-panel"><strong>Notifications</strong><div class="notification-items"><p class="muted">Loading…</p></div><a href="{{ url_for('notifications.index') }}">View all notifications</a></div>
+        </details>
         <details class="user-menu">
           <summary aria-label="Open user menu">{% with user=current_user %}{% include "_avatar.html" %}{% endwith %}</summary>
           <div class="user-menu-panel">
             <div class="user-menu-user"><strong>{{ current_user.name or '?' }}</strong><span>{{ current_user.email }}</span></div>
             {% if current_user.role != 'admin' %}<a href="{{ url_for('settings.index') }}">Profile settings</a>{% endif %}
-            <form method="post" action="{{ url_for('auth.logout') }}">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button class="link" type="submit">Log out</button>
-            </form>
+            <form method="post" action="{{ url_for('auth.logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="link" type="submit">Log out</button></form>
           </div>
         </details>
       {% else %}
-        <a href="{{ url_for('auth.register_vendor') }}">Sell</a>
-        <a href="{{ url_for('auth.login') }}">Log in</a>
-        <a class="btn" href="{{ url_for('auth.register') }}">Sign up</a>
+        <a class="header-login" href="{{ url_for('auth.login') }}">Log in</a><a class="btn signup" href="{{ url_for('auth.register') }}">Sign up</a>
+      {% endif %}
+    </div>
+  </header>
+  <div class="sidebar-scrim" hidden></div>
+  <aside class="sidebar" id="site-sidebar" aria-label="Main navigation">
+    <nav>
+      {% if current_user.is_authenticated %}
+        {% if current_user.role == 'admin' %}<a href="{{ url_for('admin.dashboard') }}">Admin dashboard</a><a href="{{ url_for('admin.applications') }}">Applications</a><a href="{{ url_for('admin.reports') }}">Reports</a><a href="{{ url_for('admin.vendors') }}">Vendors</a><a href="{{ url_for('admin.buyers') }}">Buyers</a><a href="{{ url_for('admin.banners') }}">Banners</a><a href="{{ url_for('admin.ad_requests') }}">Ad requests{% if ad_request_count %} <span class="badge">{{ ad_request_count }}</span>{% endif %}</a><a href="{{ url_for('admin.orders') }}">Orders</a><a href="{{ url_for('settings.index') }}">Settings</a>
+        {% else %}
+          <a href="{{ url_for('index') }}" class="{% if request.endpoint == 'index' %}active{% endif %}">Home</a>
+          <a href="{{ url_for('pages.orders') }}" class="{% if request.endpoint == 'pages.orders' %}active{% endif %}">Orders</a>
+          <a href="{{ url_for('pages.wishlist') }}" class="{% if request.endpoint in ('pages.wishlist', 'pages.wishlist_toggle') %}active{% endif %}">Wishlist</a>
+          <a href="{{ url_for('settings.index') }}" class="{% if request.endpoint == 'settings.index' %}active{% endif %}">Account</a>
+          <a href="{{ url_for('pages.help_page') }}" class="{% if request.endpoint == 'pages.help_page' %}active{% endif %}">Help</a>
+          {% if current_user.role == 'vendor' %}<a href="{{ url_for('vendor_orders.index') }}" class="{% if request.endpoint == 'vendor_orders.index' %}active{% endif %}">Vendor orders</a><a href="{{ url_for('listings.my_products') }}" class="{% if request.endpoint == 'listings.my_products' %}active{% endif %}">My listings</a><a href="{{ url_for('vendor.apply') }}">Vendor dashboard</a>{% endif %}
+        {% endif %}
+        <form method="post" action="{{ url_for('auth.logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="sidebar-link" type="submit">Log out</button></form>
+      {% else %}
+        <a href="{{ url_for('index') }}" class="{% if request.endpoint == 'index' %}active{% endif %}">Home</a><a href="{{ url_for('pages.help_page') }}">Help</a><a href="{{ url_for('auth.login') }}">Log in</a>
       {% endif %}
     </nav>
-  </header>
-
+  </aside>
   <main class="container">
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% for category, message in messages %}
-        <div class="flash {{ category }}">{{ message }}</div>
-      {% endfor %}
-    {% endwith %}
+    {% block back_button %}<button class="back-button" type="button" aria-label="Go back" data-back-button data-fallback="{% if request.path.startswith('/admin') %}{{ url_for('admin.dashboard') }}{% elif request.path.startswith('/vendor') and current_user.is_authenticated and current_user.role == 'vendor' %}{{ url_for('listings.my_products') }}{% else %}{{ url_for('index') }}{% endif %}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6M9 12h12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Back</span></button>{% endblock %}
+    {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="flash {{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
     {% block content %}{% endblock %}
   </main>
+  <footer class="site-footer">
+    <div class="footer-columns">
+      <div class="footer-brand"><a class="brand" href="{{ url_for('index') }}"><svg class="brand-bag" viewBox="0 0 64 64" aria-hidden="true"><path d="M23 27V18a9 9 0 0 1 18 0v9" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><path d="M11 23h42l-3 31a4.5 4.5 0 0 1-4.5 4H18.5A4.5 4.5 0 0 1 14 54z" fill="currentColor"/></svg><span>Uni<span>Hub</span></span></a><p>The campus marketplace</p></div>
+      <div><strong>Shop</strong><a href="{{ url_for('index') }}">Browse</a><a href="{{ url_for('pages.wishlist') if current_user.is_authenticated else url_for('auth.login', next=url_for('pages.wishlist')) }}">Wishlist</a></div>
+      <div><strong>Sell</strong><a href="{{ url_for('auth.register_vendor') if not current_user.is_authenticated else url_for('vendor.apply') }}">Become a vendor</a><a href="{{ url_for('pages.advertise') }}">Advertise with us</a><a href="{{ url_for('pages.seller_guidelines') }}">Seller guidelines</a></div>
+      <div><strong>Help</strong><a href="{{ url_for('pages.how_it_works') }}">How it works</a><a href="{{ url_for('pages.help_page') }}">Report a problem</a><a href="{{ url_for('pages.help_page') }}">Contact support</a></div>
+      <div><strong>Legal</strong><a href="{{ url_for('pages.terms') }}">Terms</a><a href="{{ url_for('pages.privacy') }}">Privacy</a></div>
+    </div>
+    <div class="footer-bottom"><span>Payments secured by Paystack</span><span>© {{ now_year|default(2026) }} UniHub</span></div>
+  </footer>
+  <div class="toast" role="status" aria-live="polite" aria-atomic="true" hidden></div>
   <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='wishlist.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='sidebar.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='toast.js') }}" defer></script>
+  {% if current_user.is_authenticated %}<script src="{{ url_for('static', filename='notifications.js') }}" defer></script>{% endif %}
+  {% block scripts %}{% endblock %}
 </body>
 </html>
